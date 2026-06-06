@@ -1,0 +1,431 @@
+@page "/"
+@using AI_Order.Client.Services
+@using AI_Order.Shared.Models
+@inject IOrderingService OrderingService
+@inject ISpeechService SpeechService
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
+@implements IDisposable
+
+<PageTitle>AI Order</PageTitle>
+
+<div class="page-layout">
+
+    <!-- Top: Menu + Order Panel -->
+    <div class="top-row">
+
+        <!-- Menu Area -->
+        <div class="menu-area">
+            @if (_menuLoading)
+            {
+                <div class="menu-loading">Loading menu...</div>
+            }
+            else
+            {
+                @foreach (var category in _menuItems.GroupBy(m => m.Category))
+                {
+                    <div class="menu-category">
+                        <h3 class="category-title">@category.Key</h3>
+                        <div class="menu-grid">
+                            @foreach (var item in category)
+                            {
+                                <div class="menu-card">
+                                    <div class="menu-card-body">
+                                        <span class="menu-card-name">@item.Name</span>
+                                        @if (!string.IsNullOrEmpty(item.Description))
+                                        {
+                                            <span class="menu-card-desc">@item.Description</span>
+                                        }
+                                    </div>
+                                    <span class="menu-card-price">$@item.Price.ToString("F2")</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Order Summary Panel -->
+        <div class="order-panel">
+            <div class="order-title-row">
+                <h2 class="order-title">Your Order</h2>
+                @if (!string.IsNullOrEmpty(_tableId))
+                {
+                    <span class="table-badge">@_tableId</span>
+                }
+            </div>
+
+            @if (_currentOrder == null || !_currentOrder.LineItems.Any())
+            {
+                <div class="order-empty">
+                    <p>Nothing added yet.</p>
+                    <p class="order-hint">Use the chat below to order!</p>
+                </div>
+            }
+            else
+            {
+                <div class="order-items">
+                    @foreach (var item in _currentOrder.LineItems)
+                    {
+                        <div class="order-item">
+                            <div class="order-item-info">
+                                <span class="order-item-name">@item.Name</span>
+                                @if (item.SelectedModifiers.Any())
+                                {
+                                    <span class="order-item-mods">@string.Join(", ", item.SelectedModifiers)</span>
+                                }
+                                @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                {
+                                    <span class="order-item-note">📝 @item.SpecialInstructions</span>
+                                }
+                            </div>
+                            <div class="order-item-price">
+                                <span class="qty">x@item.Quantity</span>
+                                <span>$@item.LineTotal.ToString("F2")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="order-totals">
+                    <div class="total-row"><span>Subtotal</span><span>$@_currentOrder.Subtotal.ToString("F2")</span></div>
+                    <div class="total-row"><span>Tax</span><span>$@_currentOrder.Tax.ToString("F2")</span></div>
+                    <div class="total-row total-grand"><span>Total</span><span>$@_currentOrder.Total.ToString("F2")</span></div>
+                </div>
+
+                <button class="btn-submit"
+                        @onclick="SubmitOrder"
+                        disabled="@(_isSubmitting || _isStreaming)">
+                    @(_isSubmitting ? "Submitting..." : "✅ Place Order")
+                </button>
+
+                @if (_submitResult != null)
+                {
+                    <div class="submit-result @(_submitResult.Success ? "success" : "error")">
+                        @(_submitResult.Success
+                            ? $"🎉 Order placed! ID: {_submitResult.SquareOrderId}"
+                            : $"❌ {_submitResult.Message}")
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- Bottom: Compact Chat Bar -->
+    <div class="chat-bar">
+        <div class="chat-messages-mini" id="chatMessages">
+            @foreach (var msg in _messages)
+            {
+                <div class="mini-message @(msg.Role == "user" ? "mini-user" : "mini-assistant")">
+                    <span class="mini-bubble">@msg.Content</span>
+                </div>
+            }
+            @if (_isStreaming)
+            {
+                <div class="mini-message mini-assistant">
+                    <span class="mini-bubble streaming">@_streamingText<span class="cursor">|</span></span>
+                </div>
+            }
+        </div>
+
+        <div class="chat-input-area">
+            @if (_speechError != null)
+            {
+                <div class="speech-error">⚠️ @_speechError</div>
+            }
+            @if (_interimTranscript != null)
+            {
+                <div class="interim-transcript">🎤 @_interimTranscript</div>
+            }
+            <div class="input-row">
+                <input class="chat-input"
+                       placeholder="Type your order..."
+                       @bind="_inputText"
+                       @bind:event="oninput"
+                       @onkeydown="HandleKeyDown"
+                       disabled="@(_isListening || _isStreaming)" />
+
+                <button class="btn-mic @(_isListening ? "listening" : "")"
+                        @onclick="ToggleListening"
+                        title="@(_isListening ? "Stop listening" : "Speak your order")"
+                        disabled="@_isStreaming">
+                    @(_isListening ? "🔴" : "🎤")
+                </button>
+
+                <button class="btn-send"
+                        @onclick="SendMessage"
+                        disabled="@(string.IsNullOrWhiteSpace(_inputText) || _isStreaming)">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private List<ChatMessageDto> _messages = [];
+    private List<MenuItemDto> _menuItems = [];
+    private bool _menuLoading = true;
+    private OrderDto? _currentOrder;
+    private string _tableId = string.Empty;
+    private string _inputText = string.Empty;
+    private string _streamingText = string.Empty;
+    private string? _interimTranscript;
+    private string? _speechError;
+    private bool _isStreaming;
+    private bool _isListening;
+    private bool _isSubmitting;
+    private SubmitOrderResponseDto? _submitResult;
+    private DotNetObjectReference<OrderPage>? _selfRef;
+    private CancellationTokenSource? _streamCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selfRef = DotNetObjectReference.Create(this);
+
+        var uri = new Uri(NavManager.Uri);
+        var queryParams = uri.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Split('=', 2))
+            .Where(p => p.Length == 2)
+            .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
+        _tableId = queryParams.TryGetValue("table", out var tableValue) ? tableValue : "table-1";
+
+        _messages.Add(new ChatMessageDto
+        {
+            Role = "assistant",
+            Content = "What can I get for you?"
+        });
+
+        try
+        {
+            _menuItems = await OrderingService.GetMenuAsync();
+        }
+        catch { }
+        finally
+        {
+            _menuLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JS.InvokeVoidAsync("eval",
+            "var el = document.getElementById('chatMessages'); if(el) el.scrollTop = el.scrollHeight;");
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_inputText))
+            await SendMessage();
+    }
+
+    private async Task SendMessage()
+    {
+        var text = _inputText.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        _inputText = string.Empty;
+        _messages.Add(new ChatMessageDto { Role = "user", Content = text });
+        _isStreaming = true;
+        _streamingText = string.Empty;
+        StateHasChanged();
+
+        var request = new ChatRequestDto
+        {
+            Messages = _messages.Where(m => m.Role is "user" or "assistant").ToList(),
+            CurrentOrder = _currentOrder
+        };
+
+        _streamCts = new CancellationTokenSource();
+        var fullResponse = new System.Text.StringBuilder();
+
+        try
+        {
+            await foreach (var chunk in OrderingService.ChatStreamAsync(request, _streamCts.Token))
+            {
+                fullResponse.Append(chunk);
+                _streamingText = fullResponse.ToString();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _messages.Add(new ChatMessageDto { Role = "assistant", Content = $"⚠️ Error: {ex.Message}" });
+            _streamingText = string.Empty;
+            _isStreaming = false;
+            StateHasChanged();
+            return;
+        }
+
+        var finalText = fullResponse.ToString();
+
+        // Parse out order JSON from the full response
+        var orderUpdate = TryExtractOrder(finalText);
+        if (orderUpdate != null) _currentOrder = orderUpdate;
+        var cleanText = StripOrderJson(finalText);
+
+        _messages.Add(new ChatMessageDto { Role = "assistant", Content = cleanText });
+        _streamingText = string.Empty;
+        _isStreaming = false;
+
+        // Speak the response
+        await SpeechService.SpeakAsync(cleanText);
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleListening()
+    {
+        if (_isListening)
+        {
+            await SpeechService.StopListeningAsync();
+            _isListening = false;
+        }
+        else
+        {
+            _speechError = null;
+            await SpeechService.StartListeningAsync(
+                DotNetObjectReference.Create((object)this));
+        }
+
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnListeningStarted()
+    {
+        _isListening = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnListeningEnded()
+    {
+        _isListening = false;
+        _interimTranscript = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnSpeechResult(string transcript, bool isFinal)
+    {
+        if (isFinal)
+        {
+            _inputText = transcript;
+            _interimTranscript = null;
+            await InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                await SendMessage();
+            });
+        }
+        else
+        {
+            _interimTranscript = transcript;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public void OnSpeechError(string error)
+    {
+        _speechError = error;
+        _isListening = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SubmitOrder()
+    {
+        if (_currentOrder == null) return;
+        _isSubmitting = true;
+        _submitResult = null;
+        StateHasChanged();
+
+        var request = new SubmitOrderRequestDto { Order = _currentOrder, TableId = _tableId };
+        _submitResult = await OrderingService.SubmitOrderAsync(request);
+        _isSubmitting = false;
+
+        if (_submitResult.Success)
+        {
+            _currentOrder = null;
+            _messages.Add(new ChatMessageDto
+            {
+                Role = "assistant",
+                Content = $"🎉 Your order has been sent to the kitchen! Order ID: {_submitResult.SquareOrderId}. Thank you!"
+            });
+        }
+
+        StateHasChanged();
+    }
+
+    private static OrderDto? TryExtractOrder(string message)
+    {
+        var start = message.IndexOf("<order>", StringComparison.OrdinalIgnoreCase);
+        var end = message.IndexOf("</order>", StringComparison.OrdinalIgnoreCase);
+        if (start == -1 || end == -1) return null;
+
+        var json = message[(start + 7)..end].Trim();
+        try
+        {
+            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var payload = System.Text.Json.JsonSerializer.Deserialize<OrderPayload>(json, opts);
+            if (payload?.LineItems == null) return null;
+
+            decimal subtotal = payload.LineItems.Sum(li => li.UnitPrice * li.Quantity);
+            decimal tax = subtotal * 0.0825m;
+
+            return new OrderDto
+            {
+                Id = Guid.NewGuid().ToString(),
+                LineItems = payload.LineItems.Select(li => new OrderLineItemDto
+                {
+                    MenuItemId = li.MenuItemId,
+                    Name = li.Name,
+                    Quantity = li.Quantity,
+                    UnitPrice = li.UnitPrice,
+                    LineTotal = li.UnitPrice * li.Quantity,
+                    SelectedModifiers = li.SelectedModifiers ?? [],
+                    SpecialInstructions = li.SpecialInstructions
+                }).ToList(),
+                Subtotal = subtotal,
+                Tax = tax,
+                Total = subtotal + tax,
+                Status = OrderStatus.Draft
+            };
+        }
+        catch { return null; }
+    }
+
+    private static string StripOrderJson(string message)
+    {
+        var start = message.IndexOf("<order>", StringComparison.OrdinalIgnoreCase);
+        var end = message.IndexOf("</order>", StringComparison.OrdinalIgnoreCase);
+        if (start == -1 || end == -1) return message;
+        return (message[..start] + message[(end + 8)..]).Trim();
+    }
+
+    private class OrderPayload
+    {
+        public List<LineItemPayload>? LineItems { get; set; }
+    }
+    private class LineItemPayload
+    {
+        public string MenuItemId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public List<string>? SelectedModifiers { get; set; }
+        public string? SpecialInstructions { get; set; }
+    }
+
+    public void Dispose()
+    {
+        _selfRef?.Dispose();
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+    }
+}

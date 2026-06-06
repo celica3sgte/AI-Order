@@ -1,0 +1,180 @@
+@page "/kitchen"
+@using AI_Order.Client.Services
+@using AI_Order.Shared.Models
+@using System.Text.Json
+@inject IOrderingService OrderingService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Kitchen Display</PageTitle>
+
+<div class="kitchen-layout">
+
+    <div class="kitchen-header">
+        <h1 class="kitchen-title">Kitchen Orders</h1>
+        <div class="kitchen-controls">
+            <span class="kitchen-refresh-time">Updated: @_lastRefresh.ToString("h:mm:ss tt")</span>
+            @if (_orders.Any())
+            {
+                <button class="btn-kitchen-complete-all" @onclick="DismissAll" disabled="@_completingAll">
+                    @(_completingAll ? "Clearing..." : "Mark All Complete")
+                </button>
+            }
+            <button class="btn-kitchen-refresh" @onclick="LoadOrders" disabled="@_loading">
+                @(_loading ? "Refreshing..." : "Refresh")
+            </button>
+        </div>
+    </div>
+
+    @if (_loading && !_orders.Any())
+    {
+        <div class="kitchen-empty">Loading orders...</div>
+    }
+    else if (!_orders.Any())
+    {
+        <div class="kitchen-empty">
+            <div class="kitchen-empty-icon">&#10003;</div>
+            <div>All clear — no active orders</div>
+        </div>
+    }
+    else
+    {
+        <div class="kitchen-grid">
+            @foreach (var order in _orders)
+            {
+                <div class="kitchen-ticket @(IsNew(order) ? "ticket-new" : "")">
+                    <div class="ticket-header">
+                        <span class="ticket-table">@order.TableId</span>
+                        <span class="ticket-time">@GetElapsed(order.CreatedAt)</span>
+                    </div>
+
+                    <ul class="ticket-items">
+                        @foreach (var item in order.LineItems)
+                        {
+                            <li class="ticket-item">
+                                <span class="ticket-qty">@item.Quantity&#215;</span>
+                                <div class="ticket-item-info">
+                                    <span class="ticket-name">@item.Name</span>
+                                    @if (!string.IsNullOrEmpty(item.Note))
+                                    {
+                                        <span class="ticket-item-note">@item.Note</span>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+
+                    @if (!string.IsNullOrEmpty(order.Note))
+                    {
+                        <div class="ticket-special">&#128203; @order.Note</div>
+                    }
+
+                    <button class="btn-done"
+                            @onclick="() => Dismiss(order.Id, order.Version)"
+                            disabled="@_completing.Contains(order.Id)">
+                        @(_completing.Contains(order.Id) ? "..." : "Done")
+                    </button>
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<KitchenOrderDto> _orders = [];
+    private HashSet<string> _dismissedIds = [];
+    private readonly HashSet<string> _completing = [];
+    private DateTime _lastRefresh = DateTime.Now;
+    private bool _loading;
+    private bool _completingAll;
+    private Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "kitchen_dismissed");
+            if (!string.IsNullOrEmpty(stored))
+                _dismissedIds = JsonSerializer.Deserialize<HashSet<string>>(stored) ?? [];
+        }
+        catch { }
+
+        await LoadOrders();
+        _refreshTimer = new Timer(async _ =>
+        {
+            await LoadOrders();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+    }
+
+    private async Task LoadOrders()
+    {
+        _loading = true;
+        try
+        {
+            var all = await OrderingService.GetKitchenOrdersAsync();
+            _orders = all.Where(o => !_dismissedIds.Contains(o.Id)).ToList();
+            _lastRefresh = DateTime.Now;
+        }
+        catch { }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Dismiss(string orderId, int version)
+    {
+        _completing.Add(orderId);
+        _dismissedIds.Add(orderId);
+        _orders.RemoveAll(o => o.Id == orderId);
+        StateHasChanged();
+
+        await PersistDismissed();
+        _ = OrderingService.CompleteOrderAsync(orderId, version);
+
+        _completing.Remove(orderId);
+        StateHasChanged();
+    }
+
+    private async Task DismissAll()
+    {
+        _completingAll = true;
+        StateHasChanged();
+
+        var snapshot = _orders.ToList();
+        foreach (var o in snapshot)
+            _dismissedIds.Add(o.Id);
+        _orders.Clear();
+
+        await PersistDismissed();
+        _ = Task.WhenAll(snapshot.Select(o => OrderingService.CompleteOrderAsync(o.Id, o.Version)));
+
+        _completingAll = false;
+        StateHasChanged();
+    }
+
+    private async Task PersistDismissed()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "kitchen_dismissed",
+                JsonSerializer.Serialize(_dismissedIds));
+        }
+        catch { }
+    }
+
+    private static bool IsNew(KitchenOrderDto order) =>
+        (DateTime.UtcNow - order.CreatedAt).TotalMinutes < 3;
+
+    private static string GetElapsed(DateTime createdAt)
+    {
+        var elapsed = DateTime.UtcNow - createdAt;
+        if (elapsed.TotalSeconds < 60) return "Just now";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes} min ago";
+        return $"{(int)elapsed.TotalHours}h ago";
+    }
+
+    public void Dispose() => _refreshTimer?.Dispose();
+}

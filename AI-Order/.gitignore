@@ -1,0 +1,22 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+
+## Secrets - NEVER commit these
+appsettings.Development.json
+secrets.json
+.env
+
+## Rider
+.idea/
+
+## VS Code
+.vscode/
+!.vscode/extensions.json
+
+## Build output
+publish/

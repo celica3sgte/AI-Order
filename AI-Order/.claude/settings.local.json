@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CreateOrderRequest\\\\.\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CreateOrderResponse\\\\.\" | ForEach-Object { $_.Line })"
+    ]
+  }
+}

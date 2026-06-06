@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($squareDll = Get-ChildItem \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\" -Recurse -Filter \"Square.dll\" | Select-Object -First 1 -ExpandProperty FullName; if \\($squareDll\\) { $assembly = [System.Reflection.Assembly]::LoadFrom\\($squareDll\\); $assembly.GetTypes\\(\\) | Select-Object -ExpandProperty Namespace | Sort-Object -Unique })",
+      "PowerShell($squareDll = Get-ChildItem \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\" -Recurse -Filter \"Square.dll\" | Select-Object -First 1 -ExpandProperty FullName; if \\($squareDll\\) { try { $assembly = [System.Reflection.Assembly]::LoadFrom\\($squareDll\\); $assembly.GetTypes\\(\\) | Select-Object -ExpandProperty Namespace | Sort-Object -Unique } catch { $_.Exception.LoaderExceptions | ForEach-Object { $_.Message } | Select-Object -First 5 } } else { \"DLL not found\" })",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\" -Recurse | Where-Object { !$_.PSIsContainer } | Select-Object FullName)",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"namespace|Square\\\\.Models\" | Select-Object -First 30)",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"<member name=\"\"T:\" | Select-Object -First 30 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"<member name=\"\"T:Square\\\\.\\(OrderLineItem|Money|Fulfillment|FulfillmentPickupDetails|CreateOrderRequest|Order\\)[^.]\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"M:Square\\\\.OrderLineItem\\\\.\" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"M:Square\\\\.\\(OrderLineItem|Order|Money|CreateOrderRequest\\)\\\\.\" | Select-Object -First 30 | ForEach-Object { $_.Line })",
+      "Read(//c/Users/dtran/.nuget/packages/square/41.0.0/**)",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"M:Square\\\\.SquareClient\\\\.\" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"SquareClient\" | Select-Object -First 10 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"T:Square\\\\.Orders\\\\.\" | Select-Object -First 10 | ForEach-Object { $_.Line }; Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"T:Square\\\\.Catalog\\\\.\" | Select-Object -First 10 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"CreateOrder|ListCatalog\" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"M:Square\\\\.Orders\\\\.OrdersClient\\\\.\" | Select-Object -First 10 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogObject\\\\.\" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogObject\\\\.\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogObjectItem\\\\.\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogItem\\\\.\" | ForEach-Object { $_.Line })",
+      "PowerShell(Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogObjectItemVariation\\\\.\" | ForEach-Object { $_.Line }; Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.CatalogItemVariation\\\\.\" | Select-Object -First 10 | ForEach-Object { $_.Line }; Select-String -Path \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Pattern \"P:Square\\\\.ClientOptions\\\\.\" | ForEach-Object { $_.Line })",
+      "PowerShell($content = Get-Content \"$env:USERPROFILE\\\\.nuget\\\\packages\\\\square\\\\41.0.0\\\\lib\\\\net8.0\\\\Square.xml\" -Raw; $start = $content.IndexOf\\('P:Square.CatalogItem.Variations'\\); $content.Substring\\($start, 300\\))"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\dtran\\source\\Sandbox\\AI-Order\\AI-Order.Client"
+    ]
+  }
+}
