@@ -8,8 +8,10 @@ obj/
 
 ## Secrets - NEVER commit these
 appsettings.Development.json
+appsettings.Production.json
 secrets.json
 .env
+.claude/
 
 ## Rider
 .idea/

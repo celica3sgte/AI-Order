@@ -21,7 +21,7 @@ body {
 
 .app-logo { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; }
 
-.app-main { flex: 1; overflow: hidden; padding: 16px; }
+.app-main { flex: 1; overflow: hidden; overflow-x: hidden; padding: 16px; }
 
 /* Page Layout: menu+order on top, chat bar on bottom */
 .page-layout {
@@ -365,9 +365,14 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
-    .top-row { grid-template-columns: 1fr; }
-    .order-panel { display: none; }
-    .menu-grid { grid-template-columns: 1fr 1fr; }
+    .top-row {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    .menu-area { overflow-y: visible; overflow-x: hidden; min-width: 0; }
+    .order-panel { overflow-y: visible; overflow-x: hidden; min-width: 0; width: 100%; }
+    .menu-grid { grid-template-columns: 1fr; }
 }
 
 /* Kitchen Display */
