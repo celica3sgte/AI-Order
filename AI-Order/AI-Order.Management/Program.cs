@@ -1,12 +1,17 @@
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using AI_Order.Management.Components;
 using AI_Order.Management.Components.Account;
 using AI_Order.Management.Data;
-using AI_Order.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Persist DataProtection keys so auth cookies survive app restarts
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        Path.Combine(builder.Environment.ContentRootPath, "DataProtection-Keys")));
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -29,9 +34,18 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-// Register API services directly
-builder.Services.AddSingleton<ISquareService, SquareService>();
-builder.Services.AddSingleton<IMenuService, MenuService>();
+// HttpClient for calling the API (server-to-server, authenticated with X-Management-Key)
+builder.Services.AddHttpClient("Api", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7000");
+    var key = builder.Configuration["ManagementApiKey"] ?? "";
+    if (!string.IsNullOrEmpty(key))
+        client.DefaultRequestHeaders.Add("X-Management-Key", key);
+});
+
+// Dashboard real-time services
+builder.Services.AddSingleton<AI_Order.Management.Services.OrderNotificationService>();
+builder.Services.AddScoped<AI_Order.Management.Services.SignalRClientService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -55,8 +69,8 @@ else
 }
 
 app.UseHttpsRedirection();
-
-
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();

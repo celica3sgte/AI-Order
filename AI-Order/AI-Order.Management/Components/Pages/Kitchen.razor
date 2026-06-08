@@ -1,9 +1,13 @@
 @page "/kitchen"
-@using AI_Order.Api.Services
-@using AI_Order.Shared.Models
-@inject ISquareService SquareService
-@implements IDisposable
 @attribute [Authorize]
+@rendermode InteractiveServer
+@using AI_Order.Shared.Models
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using System.Text.Json
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpClientFactory HttpClientFactory
+@implements IAsyncDisposable
 
 <PageTitle>Kitchen Display</PageTitle>
 
@@ -13,12 +17,6 @@
         <h1 class="kitchen-title">Kitchen Orders</h1>
         <div class="kitchen-controls">
             <span class="kitchen-refresh-time">Updated: @_lastRefresh.ToString("h:mm:ss tt")</span>
-            @if (_orders.Any())
-            {
-                <button class="btn-kitchen-complete-all" @onclick="CompleteAll" disabled="@_completingAll">
-                    @(_completingAll ? "Clearing..." : "Mark All Complete")
-                </button>
-            }
             <button class="btn-kitchen-refresh" @onclick="LoadOrders" disabled="@_loading">
                 @(_loading ? "Refreshing..." : "Refresh")
             </button>
@@ -39,13 +37,15 @@
     else
     {
         <div class="kitchen-grid">
-            @foreach (var order in _orders)
+            @foreach (var order in _orders.OrderBy(o => o.CreatedAt))
             {
                 <div class="kitchen-ticket @(IsNew(order) ? "ticket-new" : "")">
                     <div class="ticket-header">
                         <span class="ticket-table">@order.TableId</span>
                         <span class="ticket-time">@GetElapsed(order.CreatedAt)</span>
                     </div>
+
+                    <span class="badge @StatusBadge(order.Status) mb-2">@order.Status</span>
 
                     <ul class="ticket-items">
                         @foreach (var item in order.LineItems)
@@ -54,25 +54,47 @@
                                 <span class="ticket-qty">@item.Quantity&#215;</span>
                                 <div class="ticket-item-info">
                                     <span class="ticket-name">@item.Name</span>
-                                    @if (!string.IsNullOrEmpty(item.Note))
+                                    @if (item.SelectedModifiers.Any())
                                     {
-                                        <span class="ticket-item-note">@item.Note</span>
+                                        <span class="ticket-item-note">@string.Join(", ", item.SelectedModifiers)</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    {
+                                        <span class="ticket-item-note">@item.SpecialInstructions</span>
                                     }
                                 </div>
                             </li>
                         }
                     </ul>
 
-                    @if (!string.IsNullOrEmpty(order.Note))
+                    @if (!string.IsNullOrEmpty(order.SpecialInstructions))
                     {
-                        <div class="ticket-special">&#128203; @order.Note</div>
+                        <div class="ticket-special">&#128203; @order.SpecialInstructions</div>
                     }
 
-                    <button class="btn-done"
-                            @onclick="() => Complete(order.Id, order.Version)"
-                            disabled="@_completing.Contains(order.Id)">
-                        @(_completing.Contains(order.Id) ? "..." : "Done")
-                    </button>
+                    <div class="d-flex gap-2 mt-2">
+                        @if (order.Status == OrderStatus.Submitted)
+                        {
+                            <button class="btn-done" @onclick="() => UpdateStatus(order, OrderStatus.InProgress)"
+                                    disabled="@_updating.Contains(order.Id)">
+                                Start
+                            </button>
+                        }
+                        @if (order.Status == OrderStatus.InProgress)
+                        {
+                            <button class="btn-done" @onclick="() => UpdateStatus(order, OrderStatus.Ready)"
+                                    disabled="@_updating.Contains(order.Id)">
+                                Ready
+                            </button>
+                        }
+                        @if (order.Status is OrderStatus.InProgress or OrderStatus.Ready)
+                        {
+                            <button class="btn-done" @onclick="() => UpdateStatus(order, OrderStatus.Completed)"
+                                    disabled="@_updating.Contains(order.Id)">
+                                Done
+                            </button>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -81,15 +103,21 @@
 </div>
 
 @code {
-    private List<KitchenOrderDto> _orders = [];
-    private readonly HashSet<string> _completing = [];
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private string _userId = "";
+    private List<TableOrder> _orders = [];
+    private readonly HashSet<string> _updating = [];
     private DateTime _lastRefresh = DateTime.Now;
     private bool _loading;
-    private bool _completingAll;
     private Timer? _refreshTimer;
+    private HttpClient _api = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        _api = HttpClientFactory.CreateClient("Api");
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         await LoadOrders();
         _refreshTimer = new Timer(async _ =>
         {
@@ -103,7 +131,9 @@
         _loading = true;
         try
         {
-            _orders = await SquareService.GetKitchenOrdersAsync();
+            var all = await _api.GetFromJsonAsync<List<TableOrder>>(
+                $"api/orders/byuser/{_userId}", _jsonOptions) ?? [];
+            _orders = all.Where(o => o.Status is not OrderStatus.Completed and not OrderStatus.Cancelled).ToList();
             _lastRefresh = DateTime.Now;
         }
         catch { }
@@ -113,32 +143,27 @@
         }
     }
 
-    private async Task Complete(string orderId, int version)
+    private async Task UpdateStatus(TableOrder order, OrderStatus newStatus)
     {
-        _completing.Add(orderId);
+        _updating.Add(order.Id);
         StateHasChanged();
 
-        await SquareService.CompleteOrderAsync(orderId, version);
-        _orders.RemoveAll(o => o.Id == orderId);
-        _completing.Remove(orderId);
+        using var resp = await _api.PatchAsJsonAsync(
+            $"api/orders/{order.Id}/status",
+            new UpdateOrderStatusRequest { AspNetUserId = _userId, Status = newStatus });
+
+        if (resp.IsSuccessStatusCode)
+        {
+            if (newStatus is OrderStatus.Completed or OrderStatus.Cancelled)
+                _orders.Remove(order);
+            else
+                order.Status = newStatus;
+        }
+        _updating.Remove(order.Id);
         StateHasChanged();
     }
 
-    private async Task CompleteAll()
-    {
-        _completingAll = true;
-        StateHasChanged();
-
-        var snapshot = _orders.ToList();
-        _orders.Clear();
-
-        await Task.WhenAll(snapshot.Select(o => SquareService.CompleteOrderAsync(o.Id, o.Version)));
-
-        _completingAll = false;
-        StateHasChanged();
-    }
-
-    private static bool IsNew(KitchenOrderDto order) =>
+    private static bool IsNew(TableOrder order) =>
         (DateTime.UtcNow - order.CreatedAt).TotalMinutes < 3;
 
     private static string GetElapsed(DateTime createdAt)
@@ -149,5 +174,17 @@
         return $"{(int)elapsed.TotalHours}h ago";
     }
 
-    public void Dispose() => _refreshTimer?.Dispose();
+    private static string StatusBadge(OrderStatus s) => s switch
+    {
+        OrderStatus.Submitted  => "bg-secondary",
+        OrderStatus.InProgress => "bg-warning text-dark",
+        OrderStatus.Ready      => "bg-info text-dark",
+        _                      => "bg-light text-dark"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshTimer is not null)
+            await _refreshTimer.DisposeAsync();
+    }
 }

@@ -36,7 +36,7 @@ public class ClaudeService : IClaudeService
         var restaurantName = _config["Restaurant:Name"] ?? "Our Restaurant";
         var taxRate = _config.GetValue<decimal>("Restaurant:TaxRate", 0.0825m);
 
-        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate);
+        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate, request.CurrentOrder);
 
         var anthropicMessages = request.Messages.Select(m => new
         {
@@ -89,7 +89,7 @@ public class ClaudeService : IClaudeService
         var restaurantName = _config["Restaurant:Name"] ?? "Our Restaurant";
         var taxRate = _config.GetValue<decimal>("Restaurant:TaxRate", 0.0825m);
 
-        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate);
+        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate, request.CurrentOrder);
 
         var anthropicMessages = request.Messages.Select(m => new
         {
@@ -154,9 +154,10 @@ public class ClaudeService : IClaudeService
         }
     }
 
-    private string BuildSystemPrompt(string restaurantName, decimal taxRate)
+    private string BuildSystemPrompt(string restaurantName, decimal taxRate, OrderDto? currentOrder)
     {
         var menuContext = _menuService.BuildMenuContextForClaude();
+        var orderContext = BuildOrderContext(currentOrder);
 
         return $$"""
             You are an ordering assistant for {{restaurantName}}.
@@ -168,8 +169,9 @@ public class ClaudeService : IClaudeService
             - Only ask for missing info if truly required (e.g. required modifier not chosen).
             - If asked about ingredients or allergens, answer in one sentence.
             - When the order is finalized and the customer confirms, include [ORDER_READY] in your response.
-            - When items are added/modified, embed the current order state as JSON in your response
+            - When items are added/modified, embed the COMPLETE updated order state as JSON in your response
               wrapped in <order>...</order> tags so the UI can update in real time.
+            - Always include ALL items (existing + new) in the <order> tag — never drop items already in the order.
             - Tax rate is {{taxRate:P2}}.
             - Only take orders for items that exist on the menu below.
 
@@ -189,7 +191,27 @@ public class ClaudeService : IClaudeService
             }
             </order>
 
+            {{orderContext}}
             {{menuContext}}
+            """;
+    }
+
+    private static string BuildOrderContext(OrderDto? order)
+    {
+        if (order is null || order.LineItems.Count == 0)
+            return string.Empty;
+
+        var lines = order.LineItems.Select(li =>
+        {
+            var mods = li.SelectedModifiers.Count > 0 ? $" ({string.Join(", ", li.SelectedModifiers)})" : "";
+            return $"  - {li.Name}{mods} x{li.Quantity} @ ${li.UnitPrice:F2} = ${li.LineTotal:F2}";
+        });
+
+        return $"""
+            CURRENT ORDER (already added by the customer — preserve these unless the customer removes them):
+            {string.Join("\n", lines)}
+            Subtotal: ${order.Subtotal:F2} | Tax: ${order.Tax:F2} | Total: ${order.Total:F2}
+
             """;
     }
 

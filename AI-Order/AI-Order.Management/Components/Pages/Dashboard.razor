@@ -1,0 +1,214 @@
+@page "/dashboard"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using AI_Order.Shared.Models
+@using AI_Order.Management.Services
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using System.Net.Http.Json
+@using System.Text.Json
+@inject AuthenticationStateProvider AuthStateProvider
+@inject OrderNotificationService NotificationService
+@inject SignalRClientService SignalRClient
+@inject IHttpClientFactory HttpClientFactory
+@implements IAsyncDisposable
+
+<PageTitle>Orders Dashboard</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-0">Orders Dashboard</h2>
+            <small class="text-muted font-monospace">User: @_userId</small>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge @(SignalRClient.IsConnected ? "bg-success" : "bg-warning text-dark")">
+                @(SignalRClient.IsConnected ? "Live" : "Connecting...")
+            </span>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshAsync">Refresh</button>
+        </div>
+    </div>
+
+    @if (_initError is not null)
+    {
+        <div class="alert alert-danger">@_initError</div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+    }
+    else if (!_tableGroups.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <p class="fs-5">No active orders. New orders will appear here in real-time.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var table in _tableGroups)
+            {
+                <div class="col-12 col-lg-6 col-xl-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-capitalize">@table.Key</h5>
+                            <span class="badge bg-primary">@table.Value.Count order(s)</span>
+                        </div>
+                        <div class="card-body p-0">
+                            @foreach (var order in table.Value.OrderByDescending(o => o.CreatedAt))
+                            {
+                                <div class="border-bottom p-3 @RowClass(order.Status)">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <small class="text-muted">@order.CreatedAt.ToLocalTime().ToString("hh:mm tt")</small>
+                                        <span class="badge @BadgeClass(order.Status)">@order.Status</span>
+                                    </div>
+                                    <ul class="list-unstyled mb-2 small">
+                                        @foreach (var item in order.LineItems)
+                                        {
+                                            <li>
+                                                <span class="fw-semibold">@item.Quantity×</span> @item.Name
+                                                @if (item.SelectedModifiers.Any())
+                                                {
+                                                    <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                    @if (!string.IsNullOrWhiteSpace(order.SpecialInstructions))
+                                    {
+                                        <p class="small fst-italic text-muted mb-2">Note: @order.SpecialInstructions</p>
+                                    }
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold">$@order.Total.ToString("F2")</span>
+                                        <div class="btn-group btn-group-sm">
+                                            @if (order.Status == OrderStatus.Submitted)
+                                            {
+                                                <button class="btn btn-outline-warning"
+                                                        @onclick="() => UpdateStatusAsync(order, OrderStatus.InProgress)">
+                                                    Start
+                                                </button>
+                                            }
+                                            @if (order.Status == OrderStatus.InProgress)
+                                            {
+                                                <button class="btn btn-outline-info"
+                                                        @onclick="() => UpdateStatusAsync(order, OrderStatus.Ready)">
+                                                    Ready
+                                                </button>
+                                            }
+                                            @if (order.Status is OrderStatus.InProgress or OrderStatus.Ready)
+                                            {
+                                                <button class="btn btn-outline-success"
+                                                        @onclick="() => UpdateStatusAsync(order, OrderStatus.Completed)">
+                                                    Complete
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private string _userId = "";
+    private bool _isLoading = true;
+    private string? _initError;
+    private readonly Dictionary<string, List<TableOrder>> _tableGroups = new();
+    private HttpClient _api = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _api = HttpClientFactory.CreateClient("Api");
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+        NotificationService.OnOrderUpdated += HandleOrderUpdated;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ = SignalRClient.StartAsync(_userId);
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            var orders = await _api.GetFromJsonAsync<List<TableOrder>>(
+                $"api/orders/byuser/{_userId}", _jsonOptions) ?? [];
+            _tableGroups.Clear();
+            foreach (var order in orders.Where(o => o.Status is not OrderStatus.Completed and not OrderStatus.Cancelled))
+            {
+                if (!_tableGroups.TryGetValue(order.TableId, out var list))
+                    _tableGroups[order.TableId] = list = new();
+                list.Add(order);
+            }
+        }
+        catch (Exception ex)
+        {
+            _initError = ex.Message;
+            Console.Error.WriteLine($"[Dashboard] RefreshAsync error: {ex}");
+        }
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async void HandleOrderUpdated(string userId)
+    {
+        if (userId != _userId) return;
+        try { await InvokeAsync(RefreshAsync); }
+        catch (Exception ex) { Console.WriteLine($"[Dashboard] HandleOrderUpdated error: {ex.Message}"); }
+    }
+
+    private async Task UpdateStatusAsync(TableOrder order, OrderStatus newStatus)
+    {
+        using var resp = await _api.PatchAsJsonAsync(
+            $"api/orders/{order.Id}/status",
+            new UpdateOrderStatusRequest { AspNetUserId = _userId, Status = newStatus });
+        if (!resp.IsSuccessStatusCode) return;
+
+        order.Status = newStatus;
+        if (newStatus is OrderStatus.Completed or OrderStatus.Cancelled)
+        {
+            _tableGroups[order.TableId].Remove(order);
+            if (!_tableGroups[order.TableId].Any())
+                _tableGroups.Remove(order.TableId);
+        }
+        StateHasChanged();
+    }
+
+    private static string BadgeClass(OrderStatus s) => s switch
+    {
+        OrderStatus.Submitted  => "bg-secondary",
+        OrderStatus.InProgress => "bg-warning text-dark",
+        OrderStatus.Ready      => "bg-info text-dark",
+        OrderStatus.Completed  => "bg-success",
+        _                      => "bg-light text-dark"
+    };
+
+    private static string RowClass(OrderStatus s) => s switch
+    {
+        OrderStatus.InProgress => "bg-warning bg-opacity-10",
+        OrderStatus.Ready      => "bg-info bg-opacity-10",
+        _                      => ""
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        NotificationService.OnOrderUpdated -= HandleOrderUpdated;
+        await SignalRClient.StopAsync();
+    }
+}

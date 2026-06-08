@@ -87,6 +87,23 @@ public class SubmitOrderRequestDto
     public string? CustomerName { get; set; }
     public string? TableId { get; set; }
     public string? SpecialInstructions { get; set; }
+    public string? AspNetUserId { get; set; }
+}
+
+public class TableOrder
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string AspNetUserId { get; set; } = string.Empty;
+    public string TableId { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public string? SpecialInstructions { get; set; }
+    public List<OrderLineItemDto> LineItems { get; set; } = new();
+    public decimal Subtotal { get; set; }
+    public decimal Tax { get; set; }
+    public decimal Total { get; set; }
+    public OrderStatus Status { get; set; } = OrderStatus.Submitted;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? SquareOrderId { get; set; }
 }
 
 public class SubmitOrderResponseDto
@@ -94,6 +111,12 @@ public class SubmitOrderResponseDto
     public bool Success { get; set; }
     public string? SquareOrderId { get; set; }
     public string? Message { get; set; }
+}
+
+public class UpdateOrderStatusRequest
+{
+    public string AspNetUserId { get; set; } = string.Empty;
+    public OrderStatus Status { get; set; }
 }
 
 public class KitchenOrderDto

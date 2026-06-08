@@ -1,3 +1,4 @@
+using AI_Order.Api.Hubs;
 using AI_Order.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,15 +8,18 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-// CORS - allow Blazor WASM client
+// CORS - allow Blazor WASM client and Management server
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("BlazorClient", policy =>
     {
+        var origins = (builder.Configuration["AllowedOrigins"] ?? "https://localhost:7001")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries);
         policy
-            .WithOrigins(builder.Configuration["AllowedOrigins"] ?? "https://localhost:7001")
+            .WithOrigins(origins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -35,6 +39,8 @@ builder.Services.AddHttpClient("Anthropic", client =>
 builder.Services.AddSingleton<IMenuService, MenuService>();
 builder.Services.AddScoped<IClaudeService, ClaudeService>();
 builder.Services.AddSingleton<ISquareService, SquareService>();
+builder.Services.AddSingleton<CosmosOrderService>();
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -49,6 +55,7 @@ app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<OrderHub>("/hubs/orders");
 app.MapFallbackToFile("index.html");
 
 app.Run();

@@ -1,3 +1,4 @@
+@page "/{UserId}/{TableId}"
 @page "/"
 @using AI_Order.Client.Services
 @using AI_Order.Shared.Models
@@ -29,7 +30,8 @@
                         <div class="menu-grid">
                             @foreach (var item in category)
                             {
-                                <div class="menu-card">
+                                var qty = _currentOrder?.LineItems.FirstOrDefault(li => li.MenuItemId == item.Id)?.Quantity ?? 0;
+                                <div class="menu-card @(qty > 0 ? "menu-card-selected" : "")" @onclick="() => AddItem(item)">
                                     <div class="menu-card-body">
                                         <span class="menu-card-name">@item.Name</span>
                                         @if (!string.IsNullOrEmpty(item.Description))
@@ -37,7 +39,17 @@
                                             <span class="menu-card-desc">@item.Description</span>
                                         }
                                     </div>
-                                    <span class="menu-card-price">$@item.Price.ToString("F2")</span>
+                                    <div class="menu-card-right">
+                                        <span class="menu-card-price">$@item.Price.ToString("F2")</span>
+                                        @if (qty > 0)
+                                        {
+                                            <span class="menu-card-qty">@qty</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="menu-card-add">+</span>
+                                        }
+                                    </div>
                                 </div>
                             }
                         </div>
@@ -60,7 +72,7 @@
             {
                 <div class="order-empty">
                     <p>Nothing added yet.</p>
-                    <p class="order-hint">Use the chat below to order!</p>
+                    <p class="order-hint">Tap a menu item or use chat to order!</p>
                 </div>
             }
             else
@@ -81,6 +93,7 @@
                                 }
                             </div>
                             <div class="order-item-price">
+                                <button class="btn-qty-remove" @onclick="() => RemoveItem(item)" title="Remove one">−</button>
                                 <span class="qty">x@item.Quantity</span>
                                 <span>$@item.LineTotal.ToString("F2")</span>
                             </div>
@@ -165,6 +178,9 @@
 </div>
 
 @code {
+    [Parameter] public string? UserId { get; set; }
+    [Parameter] public string? TableId { get; set; }
+
     private List<ChatMessageDto> _messages = [];
     private List<MenuItemDto> _menuItems = [];
     private bool _menuLoading = true;
@@ -185,13 +201,20 @@
     {
         _selfRef = DotNetObjectReference.Create(this);
 
-        var uri = new Uri(NavManager.Uri);
-        var queryParams = uri.Query.TrimStart('?')
-            .Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Split('=', 2))
-            .Where(p => p.Length == 2)
-            .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
-        _tableId = queryParams.TryGetValue("table", out var tableValue) ? tableValue : "table-1";
+        if (!string.IsNullOrEmpty(TableId))
+        {
+            _tableId = TableId;
+        }
+        else
+        {
+            var uri = new Uri(NavManager.Uri);
+            var queryParams = uri.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2)
+                .ToDictionary(p => Uri.UnescapeDataString(p[0]), p => Uri.UnescapeDataString(p[1]));
+            _tableId = queryParams.TryGetValue("table", out var tableValue) ? tableValue : "table-1";
+        }
 
         _messages.Add(new ChatMessageDto
         {
@@ -338,6 +361,56 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void AddItem(MenuItemDto item)
+    {
+        _currentOrder ??= new OrderDto { Id = Guid.NewGuid().ToString(), Status = OrderStatus.Draft };
+
+        var existing = _currentOrder.LineItems.FirstOrDefault(li => li.MenuItemId == item.Id);
+        if (existing is not null)
+        {
+            existing.Quantity++;
+            existing.LineTotal = existing.UnitPrice * existing.Quantity;
+        }
+        else
+        {
+            _currentOrder.LineItems.Add(new OrderLineItemDto
+            {
+                MenuItemId = item.Id,
+                Name = item.Name,
+                Quantity = 1,
+                UnitPrice = item.Price,
+                LineTotal = item.Price
+            });
+        }
+
+        RecalculateTotals();
+        StateHasChanged();
+    }
+
+    private void RemoveItem(OrderLineItemDto item)
+    {
+        if (_currentOrder is null) return;
+        if (item.Quantity > 1)
+        {
+            item.Quantity--;
+            item.LineTotal = item.UnitPrice * item.Quantity;
+        }
+        else
+        {
+            _currentOrder.LineItems.Remove(item);
+        }
+        RecalculateTotals();
+        StateHasChanged();
+    }
+
+    private void RecalculateTotals()
+    {
+        if (_currentOrder is null) return;
+        _currentOrder.Subtotal = _currentOrder.LineItems.Sum(li => li.LineTotal);
+        _currentOrder.Tax = Math.Round(_currentOrder.Subtotal * 0.0825m, 2);
+        _currentOrder.Total = _currentOrder.Subtotal + _currentOrder.Tax;
+    }
+
     private async Task SubmitOrder()
     {
         if (_currentOrder == null) return;
@@ -345,7 +418,12 @@
         _submitResult = null;
         StateHasChanged();
 
-        var request = new SubmitOrderRequestDto { Order = _currentOrder, TableId = _tableId };
+        var request = new SubmitOrderRequestDto
+        {
+            Order = _currentOrder,
+            TableId = _tableId,
+            AspNetUserId = UserId
+        };
         _submitResult = await OrderingService.SubmitOrderAsync(request);
         _isSubmitting = false;
 
