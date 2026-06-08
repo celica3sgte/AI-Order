@@ -1,16 +1,28 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+    <main id="main-body">
+        <div class="top-row px-4 auth">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="top-row-user">@context.User.Identity?.Name</span>
+                    <form action="Account/Logout" method="post" class="d-inline ms-3">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="" />
+                        <button type="submit" class="top-row-logout">Logout</button>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="Account/Login" class="top-row-link">Login</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
-        <article class="content px-4">
+        <article class="content px-0">
             @Body
         </article>
     </main>

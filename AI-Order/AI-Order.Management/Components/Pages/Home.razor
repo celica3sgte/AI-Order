@@ -1,7 +1,45 @@
-﻿@page "/"
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
 
-<PageTitle>Home</PageTitle>
+<PageTitle>AI Order</PageTitle>
 
-<h1>Hello, world!</h1>
+<AuthorizeView>
+    <Authorized>
+        <div class="page-banner">
+            <h1 class="page-banner-title">AI Order Management</h1>
+            <p class="page-banner-sub">Real-time restaurant order management</p>
+        </div>
 
-Welcome to your new app.
+        <div class="container-fluid py-4">
+            <div class="row g-4 justify-content-center" style="max-width:500px; margin:0 auto;">
+
+                <div class="col-12">
+                    <a href="/dashboard" class="feature-card-link">
+                    <div class="feature-card">
+                        <div class="feature-card-header">
+                            <span class="feature-card-title">DASHBOARD</span>
+                        </div>
+                        <div class="feature-card-body">
+                            <svg class="feature-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                            </svg>
+                            <p class="feature-card-desc">View and manage live orders in real-time. Update order status and track all active tables.</p>
+                        </div>
+                    </div>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="home-hero">
+            <div class="home-card">
+                <div class="home-logo">AI Order</div>
+                <p class="home-subtitle">Restaurant order management</p>
+                <a class="btn btn-primary btn-lg w-100 mb-2" href="Account/Login">Sign In</a>
+                <a class="btn btn-outline-secondary w-100" href="Account/Register">Create Account</a>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>

@@ -1,7 +1,7 @@
-﻿
+
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">AI-Order.Management</a>
+        <a class="navbar-brand" href="">AI Order</a>
     </div>
 </div>
 
@@ -14,45 +14,12 @@
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="auth">
-                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
-            </NavLink>
-        </div>
-
         <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="dashboard">
-                        <span class="bi bi-grid-fill-nav-menu" aria-hidden="true"></span> Dashboard
+                        <span class="bi bi-dashboard-nav-menu" aria-hidden="true"></span> Dashboard
                     </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <form action="Account/Logout" method="post">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="ReturnUrl" value="" />
-                        <button type="submit" class="nav-link">
-                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
-                        </button>
-                    </form>
                 </div>
             </Authorized>
             <NotAuthorized>
@@ -70,5 +37,3 @@
         </AuthorizeView>
     </nav>
 </div>
-
-
