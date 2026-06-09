@@ -36,6 +36,7 @@ builder.Services.AddHttpClient("Anthropic", client =>
 });
 
 // App services
+builder.Services.AddSingleton<SqlMenuService>();
 builder.Services.AddSingleton<IMenuService, MenuService>();
 builder.Services.AddScoped<IClaudeService, ClaudeService>();
 builder.Services.AddSingleton<ISquareService, SquareService>();

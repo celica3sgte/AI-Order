@@ -36,7 +36,7 @@ public class ClaudeService : IClaudeService
         var restaurantName = _config["Restaurant:Name"] ?? "Our Restaurant";
         var taxRate = _config.GetValue<decimal>("Restaurant:TaxRate", 0.0825m);
 
-        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate, request.CurrentOrder);
+        var systemPrompt = await BuildSystemPromptAsync(restaurantName, taxRate, request.CurrentOrder, request.UserId);
 
         var anthropicMessages = request.Messages.Select(m => new
         {
@@ -89,7 +89,7 @@ public class ClaudeService : IClaudeService
         var restaurantName = _config["Restaurant:Name"] ?? "Our Restaurant";
         var taxRate = _config.GetValue<decimal>("Restaurant:TaxRate", 0.0825m);
 
-        var systemPrompt = BuildSystemPrompt(restaurantName, taxRate, request.CurrentOrder);
+        var systemPrompt = await BuildSystemPromptAsync(restaurantName, taxRate, request.CurrentOrder, request.UserId);
 
         var anthropicMessages = request.Messages.Select(m => new
         {
@@ -154,9 +154,9 @@ public class ClaudeService : IClaudeService
         }
     }
 
-    private string BuildSystemPrompt(string restaurantName, decimal taxRate, OrderDto? currentOrder)
+    private async Task<string> BuildSystemPromptAsync(string restaurantName, decimal taxRate, OrderDto? currentOrder, string? userId)
     {
-        var menuContext = _menuService.BuildMenuContextForClaude();
+        var menuContext = await _menuService.BuildMenuContextForClaudeAsync(userId);
         var orderContext = BuildOrderContext(currentOrder);
 
         return $$"""

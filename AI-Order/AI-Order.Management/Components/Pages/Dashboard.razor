@@ -25,7 +25,15 @@
     <div class="page-banner-center">
         <h1 class="page-banner-title">Dashboard</h1>
     </div>
-    <div class="page-banner-right">
+    <div class="page-banner-right d-flex gap-2">
+        <div class="btn-group btn-group-sm" role="group">
+            <button class="btn @(_tableView ? "btn-outline-light" : "btn-light")" @onclick="() => _tableView = false" title="Card view">
+                ⊞ Card
+            </button>
+            <button class="btn @(_tableView ? "btn-light" : "btn-outline-light")" @onclick="() => _tableView = true" title="Table view">
+                ☰ Table
+            </button>
+        </div>
         @if (!_isFullscreen)
         {
             <button class="btn btn-sm btn-outline-light" @onclick="GoFullscreen" title="Fullscreen">
@@ -54,7 +62,7 @@
             <p class="fs-5">No active orders. New orders will appear here in real-time.</p>
         </div>
     }
-    else
+    else if (!_tableView)
     {
         <div class="row g-4">
             @foreach (var table in _tableGroups)
@@ -143,6 +151,117 @@
             }
         </div>
     }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle mb-0 dashboard-table">
+                <thead>
+                    <tr class="dashboard-table-header">
+                        <th style="width:12%">Area</th>
+                        <th style="width:14%">Status</th>
+                        <th>Orders</th>
+                        <th style="width:18%">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var table in _tableGroups)
+                    {
+                        var orders = table.Value.OrderByDescending(o => o.CreatedAt).ToList();
+                        for (int i = 0; i < orders.Count; i++)
+                        {
+                            var order = orders[i];
+                            <tr>
+                                @if (i == 0)
+                                {
+                                    <td rowspan="@orders.Count" class="fw-semibold text-capitalize align-middle text-center">
+                                        @table.Key
+                                        @if (orders.Count > 1)
+                                        {
+                                            <div><span class="badge bg-secondary mt-1">@orders.Count orders</span></div>
+                                        }
+                                    </td>
+                                }
+                                <td class="align-middle @RowClass(order.Status)">
+                                    <span class="badge @BadgeClass(order.Status)">@order.Status</span>
+                                    <div class="text-muted small mt-1">@order.CreatedAt.ToLocalTime().ToString("hh:mm tt")</div>
+                                </td>
+                                <td class="@RowClass(order.Status)">
+                                    @if (!string.IsNullOrWhiteSpace(order.CustomerName))
+                                    {
+                                        <div class="small fw-semibold mb-1">@order.CustomerName</div>
+                                    }
+                                    <table class="table table-sm table-borderless mb-1 nested-order-table">
+                                        <tbody>
+                                            @foreach (var item in order.LineItems)
+                                            {
+                                                <tr>
+                                                    <td class="py-0">
+                                                        <span class="fw-semibold">@item.Quantity×</span> @item.Name
+                                                        @if (item.SelectedModifiers.Any())
+                                                        {
+                                                            <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
+                                                        }
+                                                    </td>
+                                                    <td class="py-0 text-end text-muted" style="width:80px">$@item.LineTotal.ToString("F2")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                        <tfoot class="border-top">
+                                            <tr class="text-muted small">
+                                                <td class="py-0">Subtotal</td>
+                                                <td class="py-0 text-end">$@order.Subtotal.ToString("F2")</td>
+                                            </tr>
+                                            <tr class="text-muted small">
+                                                <td class="py-0">Tax</td>
+                                                <td class="py-0 text-end">$@order.Tax.ToString("F2")</td>
+                                            </tr>
+                                            <tr class="fw-semibold">
+                                                <td class="py-0">Total</td>
+                                                <td class="py-0 text-end">$@order.Total.ToString("F2")</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    @if (!string.IsNullOrWhiteSpace(order.SpecialInstructions))
+                                    {
+                                        <p class="small fst-italic text-muted mb-0">Note: @order.SpecialInstructions</p>
+                                    }
+                                </td>
+                                <td class="align-middle @RowClass(order.Status)">
+                                    <div class="btn-group btn-group-sm">
+                                        @if (order.Status == OrderStatus.Submitted)
+                                        {
+                                            <button class="btn btn-outline-warning"
+                                                    @onclick="() => UpdateStatusAsync(order, OrderStatus.InProgress)">
+                                                Start
+                                            </button>
+                                        }
+                                        @if (order.Status == OrderStatus.InProgress)
+                                        {
+                                            <button class="btn btn-outline-info"
+                                                    @onclick="() => UpdateStatusAsync(order, OrderStatus.Ready)">
+                                                Ready
+                                            </button>
+                                        }
+                                        @if (order.Status is OrderStatus.InProgress or OrderStatus.Ready)
+                                        {
+                                            <button class="btn btn-outline-success"
+                                                    @onclick="() => UpdateStatusAsync(order, OrderStatus.Completed)">
+                                                Complete
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-danger"
+                                                @onclick="() => UpdateStatusAsync(order, OrderStatus.Cancelled)">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
 
 @code {
@@ -151,6 +270,7 @@
     private string _userId = "";
     private bool _isLoading = true;
     private bool _isFullscreen;
+    private bool _tableView;
     private string? _initError;
     private readonly Dictionary<string, List<TableOrder>> _tableGroups = new();
     private HttpClient _api = null!;

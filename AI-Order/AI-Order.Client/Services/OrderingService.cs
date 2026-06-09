@@ -7,7 +7,7 @@ namespace AI_Order.Client.Services;
 
 public interface IOrderingService
 {
-    Task<List<MenuItemDto>> GetMenuAsync();
+    Task<List<MenuItemDto>> GetMenuAsync(string? userId = null);
     Task<ChatResponseDto> ChatAsync(ChatRequestDto request);
     IAsyncEnumerable<string> ChatStreamAsync(ChatRequestDto request, CancellationToken ct = default);
     Task<SubmitOrderResponseDto> SubmitOrderAsync(SubmitOrderRequestDto request);
@@ -24,10 +24,10 @@ public class OrderingService : IOrderingService
         _http = http;
     }
 
-    public async Task<List<MenuItemDto>> GetMenuAsync()
+    public async Task<List<MenuItemDto>> GetMenuAsync(string? userId = null)
     {
-        return await _http.GetFromJsonAsync<List<MenuItemDto>>("api/menu")
-               ?? [];
+        var url = string.IsNullOrEmpty(userId) ? "api/menu" : $"api/menu?userId={Uri.EscapeDataString(userId)}";
+        return await _http.GetFromJsonAsync<List<MenuItemDto>>(url) ?? [];
     }
 
     public async Task<ChatResponseDto> ChatAsync(ChatRequestDto request)

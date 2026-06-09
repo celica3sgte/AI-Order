@@ -4,26 +4,34 @@ namespace AI_Order.Api.Services;
 
 public interface IMenuService
 {
-    Task<List<MenuItemDto>> GetMenuAsync();
-    Task<MenuItemDto?> GetMenuItemAsync(string id);
-    string BuildMenuContextForClaude();
+    Task<List<MenuItemDto>> GetMenuAsync(string? userId = null);
+    Task<MenuItemDto?> GetMenuItemAsync(string id, string? userId = null);
+    Task<string> BuildMenuContextForClaudeAsync(string? userId = null);
 }
 
 public class MenuService : IMenuService
 {
     private readonly ISquareService _squareService;
+    private readonly SqlMenuService _sqlMenu;
     private readonly ILogger<MenuService> _logger;
     private List<MenuItemDto>? _cachedMenu;
     private DateTime _cacheExpiry;
 
-    public MenuService(ISquareService squareService, ILogger<MenuService> logger)
+    public MenuService(ISquareService squareService, SqlMenuService sqlMenu, ILogger<MenuService> logger)
     {
         _squareService = squareService;
+        _sqlMenu = sqlMenu;
         _logger = logger;
     }
 
-    public async Task<List<MenuItemDto>> GetMenuAsync()
+    public async Task<List<MenuItemDto>> GetMenuAsync(string? userId = null)
     {
+        if (userId is not null)
+        {
+            var custom = await _sqlMenu.GetItemsAsync(userId);
+            if (custom.Count > 0) return custom;
+        }
+
         if (_cachedMenu != null && DateTime.UtcNow < _cacheExpiry)
             return _cachedMenu;
 
@@ -45,15 +53,20 @@ public class MenuService : IMenuService
         return _cachedMenu;
     }
 
-    public async Task<MenuItemDto?> GetMenuItemAsync(string id)
+    public async Task<MenuItemDto?> GetMenuItemAsync(string id, string? userId = null)
     {
-        var menu = await GetMenuAsync();
+        if (userId is not null)
+        {
+            var item = await _sqlMenu.GetItemAsync(id, userId);
+            if (item is not null) return item;
+        }
+        var menu = await GetMenuAsync(userId);
         return menu.FirstOrDefault(m => m.Id == id);
     }
 
-    public string BuildMenuContextForClaude()
+    public async Task<string> BuildMenuContextForClaudeAsync(string? userId = null)
     {
-        var menu = _cachedMenu ?? GetFallbackMenu();
+        var menu = await GetMenuAsync(userId);
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("=== RESTAURANT MENU ===");
 

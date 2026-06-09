@@ -54,6 +54,26 @@ html, body {
     margin: 0;
 }
 
+/* ── Dashboard table view ─────────────────────────────────────────── */
+.dashboard-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(5, 39, 103, 0.10);
+}
+
+.dashboard-table-header th {
+    background: linear-gradient(135deg, rgb(5, 39, 103) 0%, #3a0647 100%);
+    color: white;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
+.nested-order-table td {
+    font-size: 0.85rem;
+}
+
 /* ── Gradient card header (order cards) ───────────────────────────── */
 .card-header-gradient {
     background: linear-gradient(135deg, rgb(5, 39, 103) 0%, #3a0647 100%) !important;

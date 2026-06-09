@@ -15,16 +15,16 @@ public class MenuController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetMenu()
+    public async Task<IActionResult> GetMenu([FromQuery] string? userId = null)
     {
-        var menu = await _menuService.GetMenuAsync();
+        var menu = await _menuService.GetMenuAsync(userId);
         return Ok(menu);
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetMenuItem(string id)
+    public async Task<IActionResult> GetMenuItem(string id, [FromQuery] string? userId = null)
     {
-        var item = await _menuService.GetMenuItemAsync(id);
+        var item = await _menuService.GetMenuItemAsync(id, userId);
         if (item == null) return NotFound();
         return Ok(item);
     }

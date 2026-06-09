@@ -224,7 +224,7 @@
 
         try
         {
-            _menuItems = await OrderingService.GetMenuAsync();
+            _menuItems = await OrderingService.GetMenuAsync(UserId);
         }
         catch { }
         finally
@@ -259,7 +259,8 @@
         var request = new ChatRequestDto
         {
             Messages = _messages.Where(m => m.Role is "user" or "assistant").ToList(),
-            CurrentOrder = _currentOrder
+            CurrentOrder = _currentOrder,
+            UserId = UserId
         };
 
         _streamCts = new CancellationTokenSource();

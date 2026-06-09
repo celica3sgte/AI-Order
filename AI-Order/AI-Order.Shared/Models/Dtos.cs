@@ -11,6 +11,10 @@ public class MenuItemDto
     public List<string> Allergens { get; set; } = new();
     public bool IsAvailable { get; set; } = true;
     public List<ModifierGroupDto> ModifierGroups { get; set; } = new();
+    public string? MainImage { get; set; }
+    public string? Image1 { get; set; }
+    public string? Image2 { get; set; }
+    public string? Image3 { get; set; }
 }
 
 public class ModifierGroupDto
@@ -72,6 +76,7 @@ public class ChatRequestDto
 {
     public List<ChatMessageDto> Messages { get; set; } = new();
     public OrderDto? CurrentOrder { get; set; }
+    public string? UserId { get; set; }
 }
 
 public class ChatResponseDto
