@@ -76,12 +76,15 @@
                                     <ul class="list-unstyled mb-2 small">
                                         @foreach (var item in order.LineItems)
                                         {
-                                            <li>
-                                                <span class="fw-semibold">@item.Quantity×</span> @item.Name
-                                                @if (item.SelectedModifiers.Any())
-                                                {
-                                                    <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
-                                                }
+                                            <li class="d-flex justify-content-between">
+                                                <span>
+                                                    <span class="fw-semibold">@item.Quantity×</span> @item.Name
+                                                    @if (item.SelectedModifiers.Any())
+                                                    {
+                                                        <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
+                                                    }
+                                                </span>
+                                                <span class="text-muted ms-2">$@item.LineTotal.ToString("F2")</span>
                                             </li>
                                         }
                                     </ul>
@@ -89,8 +92,21 @@
                                     {
                                         <p class="small fst-italic text-muted mb-2">Note: @order.SpecialInstructions</p>
                                     }
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="fw-semibold">$@order.Total.ToString("F2")</span>
+                                    <div class="order-totals small text-muted mb-2">
+                                        <div class="d-flex justify-content-between">
+                                            <span>Subtotal</span>
+                                            <span>$@order.Subtotal.ToString("F2")</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Tax</span>
+                                            <span>$@order.Tax.ToString("F2")</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between fw-semibold text-dark border-top pt-1 mt-1">
+                                            <span>Total</span>
+                                            <span>$@order.Total.ToString("F2")</span>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-end">
                                         <div class="btn-group btn-group-sm">
                                             @if (order.Status == OrderStatus.Submitted)
                                             {
@@ -113,6 +129,10 @@
                                                     Complete
                                                 </button>
                                             }
+                                            <button class="btn btn-outline-danger"
+                                                    @onclick="() => UpdateStatusAsync(order, OrderStatus.Cancelled)">
+                                                Cancel
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
