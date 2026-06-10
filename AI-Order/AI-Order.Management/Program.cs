@@ -47,6 +47,9 @@ builder.Services.AddHttpClient("Api", client =>
 builder.Services.AddSingleton<AI_Order.Management.Services.OrderNotificationService>();
 builder.Services.AddScoped<AI_Order.Management.Services.SignalRClientService>();
 
+// Azure Blob Storage for menu item image uploads
+builder.Services.AddSingleton<AI_Order.Management.Services.BlobStorageService>();
+
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()

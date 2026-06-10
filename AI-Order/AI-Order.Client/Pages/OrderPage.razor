@@ -32,6 +32,14 @@
                             {
                                 var qty = _currentOrder?.LineItems.FirstOrDefault(li => li.MenuItemId == item.Id)?.Quantity ?? 0;
                                 <div class="menu-card @(qty > 0 ? "menu-card-selected" : "")" @onclick="() => AddItem(item)">
+                                    @if (!string.IsNullOrEmpty(item.MainImage))
+                                    {
+                                        <button class="menu-card-thumb" type="button"
+                                                @onclick="() => OpenPreview(item)"
+                                                @onclick:stopPropagation>
+                                            <img src="@item.MainImage" alt="@item.Name" />
+                                        </button>
+                                    }
                                     <div class="menu-card-body">
                                         <span class="menu-card-name">@item.Name</span>
                                         @if (!string.IsNullOrEmpty(item.Description))
@@ -177,6 +185,36 @@
 
 </div>
 
+@if (_previewItem is not null)
+{
+    var imgs = GetPreviewImages(_previewItem);
+    <div class="img-preview-overlay" @onclick="ClosePreview">
+        <div class="img-preview-modal" @onclick:stopPropagation>
+            <div class="img-preview-header">
+                <span class="img-preview-title">@_previewItem.Name</span>
+                @if (imgs.Count > 1)
+                {
+                    <span class="img-preview-counter">@(_previewIndex + 1) / @imgs.Count</span>
+                }
+                <button class="img-preview-close" type="button" @onclick="ClosePreview">&times;</button>
+            </div>
+            <div class="img-preview-body">
+                @if (imgs.Count > 1)
+                {
+                    <button class="img-preview-nav" type="button" @onclick="PrevImage">&#8249;</button>
+                }
+                <div class="img-preview-img-wrap">
+                    <img src="@imgs[_previewIndex]" alt="@_previewItem.Name" />
+                </div>
+                @if (imgs.Count > 1)
+                {
+                    <button class="img-preview-nav" type="button" @onclick="NextImage">&#8250;</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string? UserId { get; set; }
     [Parameter] public string? TableId { get; set; }
@@ -187,6 +225,9 @@
     private OrderDto? _currentOrder;
     private string _tableId = string.Empty;
     private string _inputText = string.Empty;
+
+    private MenuItemDto? _previewItem;
+    private int _previewIndex;
     private string _streamingText = string.Empty;
     private string? _interimTranscript;
     private string? _speechError;
@@ -360,6 +401,37 @@
         _speechError = error;
         _isListening = false;
         InvokeAsync(StateHasChanged);
+    }
+
+    private static List<string> GetPreviewImages(MenuItemDto item) =>
+        new[] { item.MainImage, item.Image1, item.Image2, item.Image3 }
+            .Where(u => !string.IsNullOrEmpty(u))
+            .ToList()!;
+
+    private void OpenPreview(MenuItemDto item)
+    {
+        _previewItem = item;
+        _previewIndex = 0;
+    }
+
+    private void ClosePreview()
+    {
+        _previewItem = null;
+        _previewIndex = 0;
+    }
+
+    private void PrevImage()
+    {
+        if (_previewItem is null) return;
+        var count = GetPreviewImages(_previewItem).Count;
+        _previewIndex = (_previewIndex - 1 + count) % count;
+    }
+
+    private void NextImage()
+    {
+        if (_previewItem is null) return;
+        var count = GetPreviewImages(_previewItem).Count;
+        _previewIndex = (_previewIndex + 1) % count;
     }
 
     private void AddItem(MenuItemDto item)

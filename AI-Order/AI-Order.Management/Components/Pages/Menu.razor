@@ -2,13 +2,17 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @using AI_Order.Management.Data
+@using AI_Order.Management.Services
 @using AI_Order.Shared.Models
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using System.Text.Json
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthStateProvider
+@inject BlobStorageService BlobStorage
+@inject IJSRuntime JS
 
 <PageTitle>Menu</PageTitle>
 
@@ -53,6 +57,10 @@
                     <tr>
                         <th>Name</th>
                         <th>Category</th>
+                        <th style="width:60px" class="text-center">Main</th>
+                        <th style="width:60px" class="text-center">Img 2</th>
+                        <th style="width:60px" class="text-center">Img 3</th>
+                        <th style="width:60px" class="text-center">Img 4</th>
                         <th>Price</th>
                         <th>Available</th>
                         <th style="width:130px"></th>
@@ -70,6 +78,24 @@
                                 }
                             </td>
                             <td><span class="badge bg-secondary">@item.Category</span></td>
+                            @foreach (var imgUrl in new[] { item.MainImage, item.Image1, item.Image2, item.Image3 })
+                            {
+                                <td class="text-center" style="width:60px">
+                                    @if (!string.IsNullOrEmpty(imgUrl))
+                                    {
+                                        var capturedUrl = imgUrl;
+                                        <button type="button" class="btn p-0 border-0 bg-transparent"
+                                                title="Click to preview" @onclick="() => _previewUrl = capturedUrl">
+                                            <img src="@capturedUrl" alt="preview"
+                                                 style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid #dee2e6;cursor:pointer;" />
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" style="font-size:0.7rem;">—</span>
+                                    }
+                                </td>
+                            }
                             <td>$@item.Price.ToString("F2")</td>
                             <td>
                                 @if (item.IsAvailable)
@@ -102,6 +128,25 @@
         </div>
     }
 </div>
+
+@if (_previewUrl is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.75)"
+         @onclick="() => _previewUrl = null">
+        <div class="modal-dialog modal-dialog-centered modal-lg" @onclick:stopPropagation>
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0">Image Preview</h6>
+                    <button type="button" class="btn-close" @onclick="() => _previewUrl = null"></button>
+                </div>
+                <div class="modal-body p-2 text-center bg-dark">
+                    <img src="@_previewUrl" alt="Preview"
+                         style="max-width:100%;max-height:75vh;object-fit:contain;" />
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @if (_showModal && _editItem is not null)
 {
@@ -268,24 +313,65 @@
                     <hr />
 
                     @* ── Images ── *@
-                    <h6 class="text-uppercase text-muted fw-bold mb-3">Images <small class="text-muted fw-normal text-lowercase">(URL)</small></h6>
+                    <h6 class="text-uppercase text-muted fw-bold mb-3">Images</h6>
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Main Image</label>
-                            <input class="form-control" @bind="_editItem.MainImage" placeholder="https://..." />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Image 2</label>
-                            <input class="form-control" @bind="_editItem.Image1" placeholder="https://..." />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Image 3</label>
-                            <input class="form-control" @bind="_editItem.Image2" placeholder="https://..." />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Image 4</label>
-                            <input class="form-control" @bind="_editItem.Image3" placeholder="https://..." />
-                        </div>
+                        @foreach (var slot in new[] {
+                            (Index: 0, Label: "Main Image"),
+                            (Index: 1, Label: "Image 2"),
+                            (Index: 2, Label: "Image 3"),
+                            (Index: 3, Label: "Image 4")
+                        })
+                        {
+                            var s = slot;
+                            var url = GetImageUrl(s.Index);
+                            <div class="col-md-6">
+                                <label class="form-label">@s.Label</label>
+                                <div class="image-upload-field border rounded p-2">
+                                    @if (!string.IsNullOrEmpty(url))
+                                    {
+                                        <div class="d-flex align-items-start gap-2 mb-2">
+                                            <img src="@url" alt="@s.Label" class="img-thumbnail"
+                                                 style="width:72px;height:72px;object-fit:cover;flex-shrink:0;" />
+                                            <div class="flex-grow-1" style="min-width:0">
+                                                <div class="d-flex align-items-center gap-1 mb-1">
+                                                    <a href="@url" target="_blank" rel="noopener"
+                                                       class="small text-muted text-truncate"
+                                                       style="min-width:0" title="@url">@url</a>
+                                                    <button type="button" class="btn btn-sm btn-link p-0 flex-shrink-0"
+                                                            title="Copy URL"
+                                                            @onclick="() => CopyUrlAsync(url)">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                                                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z"/>
+                                                            <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => ClearImage(s.Index)"
+                                                        disabled="@_uploading.GetValueOrDefault(s.Index)">
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                    <div class="d-flex align-items-center gap-2">
+                                        <InputFile OnChange="e => UploadImageAsync(e, s.Index)"
+                                                   accept="image/*"
+                                                   class="form-control form-control-sm"
+                                                   disabled="@_uploading.GetValueOrDefault(s.Index)" />
+                                        @if (_uploading.GetValueOrDefault(s.Index))
+                                        {
+                                            <div class="spinner-border spinner-border-sm text-primary flex-shrink-0"
+                                                 role="status" title="Uploading..."></div>
+                                        }
+                                    </div>
+                                    @if (_uploadErrors.TryGetValue(s.Index, out var uploadErr))
+                                    {
+                                        <div class="text-danger small mt-1">@uploadErr</div>
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
 
                 </div>
@@ -315,11 +401,15 @@
     private bool _saving;
     private MenuItemDto? _editItem;
     private string? _confirmDeleteId;
+    private string? _previewUrl;
 
     private string _newIngredient = "";
     private string _newAllergen = "";
     private Dictionary<int, string> _newOptName = new();
     private Dictionary<int, string> _newOptPrice = new();
+
+    private Dictionary<int, bool> _uploading = new();
+    private Dictionary<int, string> _uploadErrors = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -350,6 +440,8 @@
         _editItem = new MenuItemDto { Id = Guid.NewGuid().ToString(), IsAvailable = true };
         _newOptName.Clear();
         _newOptPrice.Clear();
+        _uploading.Clear();
+        _uploadErrors.Clear();
         _newIngredient = "";
         _newAllergen = "";
         _showModal = true;
@@ -361,8 +453,15 @@
         _editItem = ToDto(entity);
         _newOptName.Clear();
         _newOptPrice.Clear();
+        _uploading.Clear();
+        _uploadErrors.Clear();
         _newIngredient = "";
         _newAllergen = "";
+        for (int i = 0; i < _editItem.ModifierGroups.Count; i++)
+        {
+            _newOptName[i] = "";
+            _newOptPrice[i] = "";
+        }
         _showModal = true;
     }
 
@@ -439,7 +538,11 @@
     // ── Modifier group helpers ─────────────────────────────────────
     private void AddGroup()
     {
-        _editItem?.ModifierGroups.Add(new ModifierGroupDto { Name = "", Required = false });
+        if (_editItem is null) return;
+        var idx = _editItem.ModifierGroups.Count;
+        _editItem.ModifierGroups.Add(new ModifierGroupDto { Name = "", Required = false });
+        _newOptName[idx] = "";
+        _newOptPrice[idx] = "";
     }
 
     private void AddOption(int groupIndex)
@@ -456,6 +559,68 @@
         });
         _newOptName[groupIndex] = "";
         _newOptPrice[groupIndex] = "";
+    }
+
+    // ── Image upload helpers ───────────────────────────────────────
+    private string? GetImageUrl(int slot) => slot switch
+    {
+        0 => _editItem?.MainImage,
+        1 => _editItem?.Image1,
+        2 => _editItem?.Image2,
+        3 => _editItem?.Image3,
+        _ => null
+    };
+
+    private void SetImageUrl(int slot, string? url)
+    {
+        if (_editItem is null) return;
+        switch (slot)
+        {
+            case 0: _editItem.MainImage = url; break;
+            case 1: _editItem.Image1 = url; break;
+            case 2: _editItem.Image2 = url; break;
+            case 3: _editItem.Image3 = url; break;
+        }
+    }
+
+    private void ClearImage(int slot) => SetImageUrl(slot, null);
+
+    private async Task CopyUrlAsync(string? url)
+    {
+        if (!string.IsNullOrEmpty(url))
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+    }
+
+    private async Task UploadImageAsync(InputFileChangeEventArgs e, int slot)
+    {
+        if (_editItem is null) return;
+        var file = e.File;
+        _uploadErrors.Remove(slot);
+
+        const long maxBytes = 10 * 1024 * 1024; // 10 MB
+        if (file.Size > maxBytes)
+        {
+            _uploadErrors[slot] = "File must be under 10 MB.";
+            return;
+        }
+
+        _uploading[slot] = true;
+        StateHasChanged();
+
+        try
+        {
+            await using var stream = file.OpenReadStream(maxBytes);
+            var url = await BlobStorage.UploadImageAsync(
+                stream, file.ContentType, _userId, _editItem.Name, file.Name);
+            SetImageUrl(slot, url);
+        }
+        catch (Exception ex)
+        {
+            _uploadErrors[slot] = $"Upload failed: {ex.Message}";
+        }
+
+        _uploading[slot] = false;
+        StateHasChanged();
     }
 
     // ── Entity ↔ DTO mapping ───────────────────────────────────────

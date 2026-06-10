@@ -148,6 +148,124 @@ body {
     text-overflow: ellipsis;
 }
 
+.menu-card-thumb {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: zoom-in;
+}
+
+.menu-card-thumb img {
+    width: 54px;
+    height: 54px;
+    object-fit: cover;
+    border-radius: 7px;
+    border: 1px solid rgba(0,0,0,0.08);
+    transition: opacity 0.15s;
+    display: block;
+}
+
+.menu-card-thumb:hover img {
+    opacity: 0.82;
+}
+
+/* Image preview modal */
+.img-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.img-preview-modal {
+    background: #111;
+    border-radius: 10px;
+    overflow: hidden;
+    max-width: 90vw;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+}
+
+.img-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #222;
+    color: white;
+}
+
+.img-preview-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-grow: 1;
+}
+
+.img-preview-counter {
+    font-size: 0.78rem;
+    color: #aaa;
+}
+
+.img-preview-close {
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+.img-preview-close:hover { color: white; }
+
+.img-preview-body {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.img-preview-img-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.img-preview-img-wrap img {
+    max-width: 100%;
+    max-height: 75vh;
+    object-fit: contain;
+    display: block;
+}
+
+.img-preview-nav {
+    flex-shrink: 0;
+    width: 46px;
+    background: rgba(255,255,255,0.06);
+    border: none;
+    color: rgba(255,255,255,0.75);
+    font-size: 2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
+}
+
+.img-preview-nav:hover {
+    background: rgba(255,255,255,0.18);
+    color: white;
+}
+
 .menu-card-price {
     font-weight: 700;
     font-size: 0.88rem;

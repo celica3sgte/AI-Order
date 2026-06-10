@@ -191,6 +191,10 @@ public class ClaudeService : IClaudeService
             }
             </order>
 
+            CRITICAL: unitPrice MUST equal the item's base price PLUS the sum of all selected modifier price adjustments.
+            Example: Big Mac ($4.99) + Small Meal (+$3.00) → unitPrice must be 7.99, NOT 4.99.
+            The UI calculates totals entirely from unitPrice — never put only the base price when modifiers are selected.
+
             {{orderContext}}
             {{menuContext}}
             """;

@@ -84,15 +84,21 @@
                                     <ul class="list-unstyled mb-2 small">
                                         @foreach (var item in order.LineItems)
                                         {
-                                            <li class="d-flex justify-content-between">
-                                                <span>
-                                                    <span class="fw-semibold">@item.Quantity×</span> @item.Name
-                                                    @if (item.SelectedModifiers.Any())
-                                                    {
-                                                        <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
-                                                    }
-                                                </span>
-                                                <span class="text-muted ms-2">$@item.LineTotal.ToString("F2")</span>
+                                            <li>
+                                                <div class="d-flex justify-content-between">
+                                                    <span>
+                                                        <span class="fw-semibold">@item.Quantity×</span> @item.Name
+                                                        @if (item.SelectedModifiers.Any())
+                                                        {
+                                                            <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
+                                                        }
+                                                    </span>
+                                                    <span class="text-muted ms-2">$@item.LineTotal.ToString("F2")</span>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                                {
+                                                    <div class="text-muted fst-italic" style="font-size:0.78rem;">📝 @item.SpecialInstructions</div>
+                                                }
                                             </li>
                                         }
                                     </ul>
@@ -200,6 +206,10 @@
                                                         @if (item.SelectedModifiers.Any())
                                                         {
                                                             <span class="text-muted"> (@string.Join(", ", item.SelectedModifiers))</span>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                                        {
+                                                            <div class="text-muted fst-italic" style="font-size:0.78rem;">📝 @item.SpecialInstructions</div>
                                                         }
                                                     </td>
                                                     <td class="py-0 text-end text-muted" style="width:80px">$@item.LineTotal.ToString("F2")</td>
