@@ -174,6 +174,7 @@ public class ClaudeService : IClaudeService
             - Always include ALL items (existing + new) in the <order> tag — never drop items already in the order.
             - Tax rate is {{taxRate:P2}}.
             - Only take orders for items that exist on the menu below.
+            - Detect the language the customer is writing in and respond in that same language throughout the conversation.
 
             ORDER JSON FORMAT (include whenever order changes):
             <order>

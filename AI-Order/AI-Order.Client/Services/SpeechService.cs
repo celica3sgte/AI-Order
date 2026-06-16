@@ -5,9 +5,9 @@ namespace AI_Order.Client.Services;
 public interface ISpeechService
 {
     Task<bool> IsSupportedAsync();
-    Task StartListeningAsync(DotNetObjectReference<object> dotnetRef);
+    Task StartListeningAsync(DotNetObjectReference<object> dotnetRef, string lang = "en-US");
     Task StopListeningAsync();
-    Task SpeakAsync(string text);
+    Task SpeakAsync(string text, string lang = "en-US");
     Task StopSpeakingAsync();
 }
 
@@ -25,9 +25,9 @@ public class SpeechService : ISpeechService
         return await _js.InvokeAsync<bool>("SpeechInterop.isSupported");
     }
 
-    public async Task StartListeningAsync(DotNetObjectReference<object> dotnetRef)
+    public async Task StartListeningAsync(DotNetObjectReference<object> dotnetRef, string lang = "en-US")
     {
-        await _js.InvokeVoidAsync("SpeechInterop.startListening", dotnetRef);
+        await _js.InvokeVoidAsync("SpeechInterop.startListening", dotnetRef, lang);
     }
 
     public async Task StopListeningAsync()
@@ -35,9 +35,9 @@ public class SpeechService : ISpeechService
         await _js.InvokeVoidAsync("SpeechInterop.stopListening");
     }
 
-    public async Task SpeakAsync(string text)
+    public async Task SpeakAsync(string text, string lang = "en-US")
     {
-        await _js.InvokeVoidAsync("SpeechInterop.speak", text);
+        await _js.InvokeVoidAsync("SpeechInterop.speak", text, lang);
     }
 
     public async Task StopSpeakingAsync()

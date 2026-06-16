@@ -10,7 +10,7 @@ window.SpeechInterop = {
         return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
     },
 
-    startListening: function (dotnetRef) {
+    startListening: function (dotnetRef, lang) {
         if (!window.SpeechInterop.isSupported()) {
             dotnetRef.invokeMethodAsync('OnSpeechError', 'Speech recognition is not supported in this browser. Please use Chrome or Edge.');
             return;
@@ -19,7 +19,7 @@ window.SpeechInterop = {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recognition = new SpeechRecognition();
 
-        recognition.lang = 'en-US';
+        recognition.lang = lang || 'en-US';
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
         recognition.continuous = false;
@@ -56,13 +56,13 @@ window.SpeechInterop = {
         }
     },
 
-    speak: function (text, rate = 1.0, pitch = 1.0) {
+    speak: function (text, lang, rate = 1.0, pitch = 1.0) {
         if (!('speechSynthesis' in window)) return;
-        window.speechSynthesis.cancel(); // Stop any current speech
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = rate;
         utterance.pitch = pitch;
-        utterance.lang = 'en-US';
+        utterance.lang = lang || 'en-US';
         window.speechSynthesis.speak(utterance);
     },
 

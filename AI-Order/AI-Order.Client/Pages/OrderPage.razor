@@ -12,6 +12,12 @@
 
 <div class="page-layout">
 
+    <!-- Language toggle -->
+    <div class="lang-toggle-bar">
+        <button class="lang-btn @(_lang == "en" ? "lang-active" : "")" @onclick='() => SetLang("en")'>🇺🇸 EN</button>
+        <button class="lang-btn @(_lang == "vi" ? "lang-active" : "")" @onclick='() => SetLang("vi")'>🇻🇳 VI</button>
+    </div>
+
     <!-- Top: Menu + Order Panel -->
     <div class="top-row">
 
@@ -161,7 +167,7 @@
             }
             <div class="input-row">
                 <input class="chat-input"
-                       placeholder="Type your order..."
+                       placeholder="@InputPlaceholder"
                        @bind="_inputText"
                        @bind:event="oninput"
                        @onkeydown="HandleKeyDown"
@@ -228,6 +234,12 @@
 
     private MenuItemDto? _previewItem;
     private int _previewIndex;
+
+    private string _lang = "en";
+    private string SpeechLang => _lang == "vi" ? "vi-VN" : "en-US";
+    private string InputPlaceholder => _lang == "vi" ? "Nhập đơn hàng của bạn..." : "Type your order...";
+
+    private void SetLang(string lang) => _lang = lang;
     private string _streamingText = string.Empty;
     private string? _interimTranscript;
     private string? _speechError;
@@ -338,7 +350,7 @@
         _isStreaming = false;
 
         // Speak the response
-        await SpeechService.SpeakAsync(cleanText);
+        await SpeechService.SpeakAsync(cleanText, SpeechLang);
 
         StateHasChanged();
     }
@@ -354,7 +366,7 @@
         {
             _speechError = null;
             await SpeechService.StartListeningAsync(
-                DotNetObjectReference.Create((object)this));
+                DotNetObjectReference.Create((object)this), SpeechLang);
         }
 
         StateHasChanged();
