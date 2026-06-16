@@ -873,7 +873,36 @@ body {
     font-size: 0.88rem;
     color: #555;
     line-height: 1.55;
+    margin-bottom: 12px;
+}
+
+.item-ingredients {
     margin-bottom: 16px;
+}
+
+.item-ingredients-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.item-ingredients-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.item-ingredient-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: #f0f0f5;
+    border: 1px solid #ddd;
+    font-size: 0.78rem;
+    color: #444;
 }
 
 .modifier-group { margin-bottom: 16px; }

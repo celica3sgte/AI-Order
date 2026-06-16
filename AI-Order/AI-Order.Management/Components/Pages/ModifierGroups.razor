@@ -1,0 +1,480 @@
+@page "/modifier-groups"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using AI_Order.Management.Data
+@using AI_Order.Shared.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using System.Net.Http.Json
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Modifier Groups</PageTitle>
+
+<div class="page-banner">
+    <div class="page-banner-left"></div>
+    <div class="page-banner-center">
+        <h1 class="page-banner-title">Modifier Groups</h1>
+        <p class="page-banner-sub">Reusable modifier groups shared across menu items</p>
+    </div>
+    <div class="page-banner-right">
+        <button class="btn btn-success btn-sm" @onclick="OpenNew">+ New Group</button>
+    </div>
+</div>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger alert-dismissible mt-3" role="alert">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+
+<div class="container-fluid py-3">
+    @if (_groups.Count == 0)
+    {
+        <div class="text-center text-muted py-5">
+            <p>No modifier groups yet. Create one to get started.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Internal Name</th>
+                        <th>Customer Display Name</th>
+                        <th>Required</th>
+                        <th>Options</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var grp in _groups)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@grp.Name</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(grp.DisplayName))
+                                {
+                                    <span>@grp.DisplayName</span>
+                                    @if (!string.IsNullOrEmpty(grp.DisplayNameAlt))
+                                    {
+                                        <span class="text-muted small ms-1">/ @grp.DisplayNameAlt</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted fst-italic">same as internal</span>
+                                }
+                            </td>
+                            <td>
+                                @if (grp.Required)
+                                {
+                                    <span class="badge bg-danger">Required</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Optional</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="text-muted">@grp.Options.Count option(s)</span>
+                                @if (grp.Options.Any())
+                                {
+                                    <span class="ms-2 text-muted small">(@string.Join(", ", grp.Options.OrderBy(o => o.SortOrder).Select(o => o.Name)))</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OpenEdit(grp)">Edit</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(grp)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* ── Edit / New Modal ── *@
+@if (_showModal && _editGroup != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header card-header-gradient">
+                    <span class="text-white-50 small">
+                        @PrimaryLangName
+                        @if (!string.IsNullOrEmpty(_settingsSecondary))
+                        {
+                            <span class="mx-1">·</span>@SecondaryLangName
+                        }
+                    </span>
+                    <h5 class="modal-title text-white position-absolute start-50 translate-middle-x mb-0">
+                        @(_isNew ? "New Modifier Group" : _editGroup.Name)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white ms-auto" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+
+                    @* ── Internal Name + Required ── *@
+                    <div class="row g-3 mb-1">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">
+                                Internal Name
+                                <span class="text-muted fw-normal small ms-1">used to distinguish groups with the same display name</span>
+                            </label>
+                            <input class="form-control" @bind="_editGroup.Name"
+                                   placeholder="e.g. Bowl Size, Drink Size, Temperature" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check pb-1">
+                                <input class="form-check-input" type="checkbox" id="chkRequired"
+                                       @bind="_editGroup.Required" />
+                                <label class="form-check-label fw-semibold" for="chkRequired">Required</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @* ── Display Name ── *@
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">
+                                Customer Display Name
+                                <span class="text-muted fw-normal small ms-1">what customers see (leave blank to use internal name)</span>
+                            </label>
+                            <input class="form-control" @bind="_editGroup.DisplayName"
+                                   placeholder="e.g. Size" />
+                        </div>
+                    </div>
+
+                    @* ── Alt language translation ── *@
+                    @if (!string.IsNullOrEmpty(_settingsSecondary))
+                    {
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <h6 class="text-uppercase text-muted fw-bold mb-0">@SecondaryLangName Translation</h6>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    @onclick="AutoTranslateAsync" disabled="@_translating">
+                                @if (_translating)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span><span>Translating…</span>
+                                }
+                                else
+                                {
+                                    <span>✨ Auto-translate to @SecondaryLangName</span>
+                                }
+                            </button>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Display Name (@SecondaryLangName)</label>
+                                <input class="form-control" @bind="_editGroup.DisplayNameAlt"
+                                       placeholder="@($"{SecondaryLangName} display name...")" />
+                            </div>
+                        </div>
+                    }
+
+                    @* ── Options ── *@
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="fw-bold mb-0">Options</h6>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="AddOption">+ Add Option</button>
+                    </div>
+
+                    @if (_editOptions.Count == 0)
+                    {
+                        <p class="text-muted small mb-3">No options yet. Add at least one option.</p>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            @foreach (var (opt, idx) in _editOptions.Select((o, i) => (o, i)))
+                            {
+                                var localIdx = idx;
+                                <div class="modifier-option-row border rounded p-2 mb-2">
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col">
+                                            <input class="form-control form-control-sm"
+                                                   placeholder="Option name"
+                                                   value="@opt.Name"
+                                                   @oninput="e => opt.Name = e.Value?.ToString() ?? string.Empty" />
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(_settingsSecondary))
+                                        {
+                                            <div class="col">
+                                                <input class="form-control form-control-sm"
+                                                       placeholder="@($"{SecondaryLangName} name")"
+                                                       value="@opt.NameAlt"
+                                                       @oninput="e => opt.NameAlt = e.Value?.ToString()" />
+                                            </div>
+                                        }
+                                        <div class="col-auto" style="width:110px">
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">$</span>
+                                                <input class="form-control" type="number" step="0.01" min="0"
+                                                       placeholder="0.00"
+                                                       value="@opt.PriceModifier.ToString("F2")"
+                                                       @onchange="e => { if (decimal.TryParse(e.Value?.ToString(), out var v)) opt.PriceModifier = v; }" />
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => RemoveOption(localIdx)">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _userId = string.Empty;
+    private List<ModifierGroupEntity> _groups = [];
+    private string? _error;
+
+    private bool _showModal;
+    private bool _isNew;
+    private ModifierGroupEntity? _editGroup;
+    private List<EditableOption> _editOptions = [];
+    private bool _saving;
+    private bool _translating;
+
+    private string _settingsPrimary = "en";
+    private string _settingsSecondary = "";
+    private string PrimaryLangName   => LanguageDefinitions.Get(_settingsPrimary).Name;
+    private string SecondaryLangName => !string.IsNullOrEmpty(_settingsSecondary)
+        ? LanguageDefinitions.Get(_settingsSecondary).Name
+        : "Secondary Language";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+
+        var settings = await Db.RestaurantSettings.FindAsync(_userId);
+        _settingsPrimary   = settings?.PrimaryLanguageCode   ?? "en";
+        _settingsSecondary = settings?.SecondaryLanguageCode ?? "";
+
+        await LoadGroupsAsync();
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        _groups = await Db.ModifierGroups
+            .Include(g => g.Options)
+            .Where(g => g.AspNetUserId == _userId)
+            .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+            .ToListAsync();
+    }
+
+    private void OpenNew()
+    {
+        _isNew = true;
+        _editGroup = new ModifierGroupEntity { AspNetUserId = _userId };
+        _editOptions = [];
+        _error = null;
+        _showModal = true;
+    }
+
+    private void OpenEdit(ModifierGroupEntity grp)
+    {
+        _isNew = false;
+        _editGroup = new ModifierGroupEntity
+        {
+            Id = grp.Id,
+            AspNetUserId = grp.AspNetUserId,
+            Name = grp.Name,
+            NameAlt = grp.NameAlt,
+            DisplayName = grp.DisplayName,
+            DisplayNameAlt = grp.DisplayNameAlt,
+            Required = grp.Required,
+            SortOrder = grp.SortOrder
+        };
+        _editOptions = grp.Options
+            .OrderBy(o => o.SortOrder)
+            .Select(o => new EditableOption
+            {
+                Id = o.Id,
+                Name = o.Name,
+                NameAlt = o.NameAlt,
+                PriceModifier = o.PriceModifier,
+                SortOrder = o.SortOrder
+            })
+            .ToList();
+        _error = null;
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _editGroup = null;
+    }
+
+    private void AddOption()
+    {
+        _editOptions.Add(new EditableOption { SortOrder = _editOptions.Count });
+    }
+
+    private void RemoveOption(int index)
+    {
+        if (index >= 0 && index < _editOptions.Count)
+            _editOptions.RemoveAt(index);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _editGroup is null) return;
+        if (string.IsNullOrWhiteSpace(_editGroup.Name))
+        {
+            _error = "Internal name is required.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var validOptions = _editOptions
+                .Select((o, i) => (o, i))
+                .Where(x => !string.IsNullOrWhiteSpace(x.o.Name))
+                .Select(x => new ModifierOptionEntity
+                {
+                    Name          = x.o.Name.Trim(),
+                    NameAlt       = string.IsNullOrWhiteSpace(x.o.NameAlt) ? null : x.o.NameAlt.Trim(),
+                    PriceModifier = x.o.PriceModifier,
+                    SortOrder     = x.i
+                })
+                .ToList();
+
+            if (_isNew)
+            {
+                // Use EF navigation so group + options save in one round-trip
+                var entity = new ModifierGroupEntity
+                {
+                    AspNetUserId   = _userId,
+                    Name           = _editGroup.Name.Trim(),
+                    NameAlt        = string.IsNullOrWhiteSpace(_editGroup.NameAlt)        ? null : _editGroup.NameAlt.Trim(),
+                    DisplayName    = string.IsNullOrWhiteSpace(_editGroup.DisplayName)    ? null : _editGroup.DisplayName.Trim(),
+                    DisplayNameAlt = string.IsNullOrWhiteSpace(_editGroup.DisplayNameAlt) ? null : _editGroup.DisplayNameAlt.Trim(),
+                    Required       = _editGroup.Required,
+                    SortOrder      = _editGroup.SortOrder,
+                    Options        = validOptions
+                };
+                Db.ModifierGroups.Add(entity);
+                await Db.SaveChangesAsync();
+            }
+            else
+            {
+                var existing = await Db.ModifierGroups
+                    .Include(g => g.Options)
+                    .FirstOrDefaultAsync(g => g.Id == _editGroup.Id && g.AspNetUserId == _userId);
+                if (existing is null) { _error = "Group not found."; return; }
+
+                existing.Name          = _editGroup.Name.Trim();
+                existing.NameAlt       = string.IsNullOrWhiteSpace(_editGroup.NameAlt)        ? null : _editGroup.NameAlt.Trim();
+                existing.DisplayName   = string.IsNullOrWhiteSpace(_editGroup.DisplayName)    ? null : _editGroup.DisplayName.Trim();
+                existing.DisplayNameAlt = string.IsNullOrWhiteSpace(_editGroup.DisplayNameAlt) ? null : _editGroup.DisplayNameAlt.Trim();
+                existing.Required      = _editGroup.Required;
+                existing.SortOrder     = _editGroup.SortOrder;
+
+                // Replace options in one SaveChangesAsync
+                Db.ModifierOptions.RemoveRange(existing.Options);
+                foreach (var opt in validOptions)
+                {
+                    opt.ModifierGroupId = existing.Id;
+                    Db.ModifierOptions.Add(opt);
+                }
+                await Db.SaveChangesAsync();
+            }
+
+            _showModal = false;
+            _editGroup = null;
+            await LoadGroupsAsync();
+        }
+        catch (Exception ex) { _error = $"Save failed: {ex.Message}"; }
+        _saving = false;
+    }
+
+    private async Task DeleteAsync(ModifierGroupEntity grp)
+    {
+        _error = null;
+        try
+        {
+            var entity = await Db.ModifierGroups.FindAsync(grp.Id);
+            if (entity is not null && entity.AspNetUserId == _userId)
+            {
+                Db.ModifierGroups.Remove(entity);
+                await Db.SaveChangesAsync();
+                await LoadGroupsAsync();
+            }
+        }
+        catch (Exception ex) { _error = $"Delete failed: {ex.Message}"; }
+    }
+
+    private async Task AutoTranslateAsync()
+    {
+        if (_editGroup is null || string.IsNullOrWhiteSpace(_editGroup.Name)) return;
+        _translating = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            // Translate the display name (fall back to internal name if display name not set)
+            var nameToTranslate = !string.IsNullOrWhiteSpace(_editGroup.DisplayName)
+                ? _editGroup.DisplayName.Trim()
+                : _editGroup.Name.Trim();
+
+            var optionNames = _editOptions
+                .Where(o => !string.IsNullOrWhiteSpace(o.Name))
+                .Select(o => o.Name.Trim())
+                .ToList();
+
+            var requestBody = new ModifierGroupTranslationRequestDto
+            {
+                Name = nameToTranslate,
+                OptionNames = optionNames,
+                TargetLanguageName = SecondaryLangName
+            };
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.PostAsJsonAsync("api/translation/modifier-group", requestBody);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<ModifierGroupTranslationResponseDto>();
+            if (result != null)
+            {
+                _editGroup.DisplayNameAlt = result.NameAlt;
+                for (int i = 0; i < _editOptions.Count && i < result.OptionNamesAlt.Count; i++)
+                    _editOptions[i].NameAlt = result.OptionNamesAlt[i];
+            }
+        }
+        catch (Exception ex) { _error = $"Auto-translate failed: {ex.Message}"; }
+        _translating = false;
+    }
+
+    private class EditableOption
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? NameAlt { get; set; }
+        public decimal PriceModifier { get; set; }
+        public int SortOrder { get; set; }
+    }
+}

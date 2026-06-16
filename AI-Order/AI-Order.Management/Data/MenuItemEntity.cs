@@ -14,9 +14,9 @@ public class MenuItemEntity
     public string? Image2 { get; set; }
     public string? Image3 { get; set; }
     public string IngredientsJson { get; set; } = "[]";
+    public string IngredientsJsonAlt { get; set; } = "[]";
     public string AllergensJson { get; set; } = "[]";
-    public string ModifierGroupsJson { get; set; } = "[]";
     public string? NameAlt { get; set; }
     public string? DescriptionAlt { get; set; }
-    public string ModifierGroupsJsonAlt { get; set; } = "[]";
+    public ICollection<MenuItemModifierGroupEntity> ModifierGroupLinks { get; set; } = [];
 }

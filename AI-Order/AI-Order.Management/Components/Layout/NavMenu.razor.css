@@ -114,6 +114,25 @@
     margin: 0.5rem 1rem;
 }
 
+.nav-item ::deep .nav-link-sub {
+    font-size: 0.82rem;
+    height: 2.4rem;
+    line-height: 2.4rem;
+    color: rgba(215,215,215,0.75);
+    padding-top: 0;
+}
+
+.nav-item ::deep .nav-link-sub.active {
+    background-color: rgba(255,255,255,0.18);
+    color: white;
+}
+
+.nav-sub-indicator {
+    opacity: 0.5;
+    margin-right: 0.4rem;
+    font-size: 0.85rem;
+}
+
 .nav-scrollable {
     display: none;
 }

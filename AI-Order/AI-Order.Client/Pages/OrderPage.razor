@@ -257,13 +257,28 @@
                 {
                     <p class="item-modal-desc">@modalDesc</p>
                 }
+                @{
+                    var modalIngredients = _lang == "alt" && modalItem.IngredientsAlt.Any()
+                        ? modalItem.IngredientsAlt
+                        : modalItem.Ingredients;
+                }
+                @if (modalIngredients.Any())
+                {
+                    <div class="item-ingredients">
+                        <div class="item-ingredients-title">Ingredients</div>
+                        <div class="item-ingredients-list">
+                            @foreach (var ing in modalIngredients)
+                            {
+                                <span class="item-ingredient-chip">@ing</span>
+                            }
+                        </div>
+                    </div>
+                }
                 @for (int gi = 0; gi < modalItem.ModifierGroups.Count; gi++)
                 {
                     var grp = modalItem.ModifierGroups[gi];
                     var gIdx = gi;
-                    var altGrp = _lang == "alt" && gi < modalItem.ModifierGroupsAlt.Count
-                        ? modalItem.ModifierGroupsAlt[gi] : null;
-                    var grpName = !string.IsNullOrEmpty(altGrp?.Name) ? altGrp!.Name : grp.Name;
+                    var grpName = _lang == "alt" && !string.IsNullOrEmpty(grp.NameAlt) ? grp.NameAlt : grp.Name;
                     <div class="modifier-group">
                         <div class="modifier-group-title">
                             @grpName
@@ -276,8 +291,7 @@
                         {
                             var opt = grp.Options[oi];
                             var oIdx = oi;
-                            var altOpt = altGrp != null && oi < altGrp.Options.Count ? altGrp.Options[oi] : null;
-                            var optName = !string.IsNullOrEmpty(altOpt?.Name) ? altOpt!.Name : opt.Name;
+                            var optName = _lang == "alt" && !string.IsNullOrEmpty(opt.NameAlt) ? opt.NameAlt : opt.Name;
                             @if (grp.Required)
                             {
                                 <label class="modifier-option">
@@ -631,10 +645,10 @@
         var grps = _itemModalItem.ModifierGroups;
         foreach (var (gi, oi) in _selectedRequired.OrderBy(x => x.Key))
             if (oi >= 0 && gi < grps.Count && oi < grps[gi].Options.Count)
-                mods.Add(grps[gi].Options[oi].Name);
+                mods.Add($"{grps[gi].Name}: {grps[gi].Options[oi].Name}");
         foreach (var (gi, oi) in _selectedOptional.OrderBy(x => x.g))
             if (gi < grps.Count && oi < grps[gi].Options.Count)
-                mods.Add(grps[gi].Options[oi].Name);
+                mods.Add($"{grps[gi].Name}: {grps[gi].Options[oi].Name}");
 
         _currentOrder ??= new OrderDto { Id = Guid.NewGuid().ToString(), Status = OrderStatus.Draft };
         _currentOrder.LineItems.Add(new OrderLineItemDto

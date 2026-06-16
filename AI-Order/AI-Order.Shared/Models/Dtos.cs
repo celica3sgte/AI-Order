@@ -8,6 +8,7 @@ public class MenuItemDto
     public decimal Price { get; set; }
     public string Category { get; set; } = string.Empty;
     public List<string> Ingredients { get; set; } = new();
+    public List<string> IngredientsAlt { get; set; } = new();
     public List<string> Allergens { get; set; } = new();
     public bool IsAvailable { get; set; } = true;
     public List<ModifierGroupDto> ModifierGroups { get; set; } = new();
@@ -17,14 +18,13 @@ public class MenuItemDto
     public string? Image3 { get; set; }
     public string? NameAlt { get; set; }
     public string? DescriptionAlt { get; set; }
-    public List<ModifierGroupDto> ModifierGroupsAlt { get; set; } = new();
 }
 
 public class MenuItemTranslationRequestDto
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public List<ModifierGroupDto> ModifierGroups { get; set; } = new();
+    public List<string> Ingredients { get; set; } = new();
     public string TargetLanguageName { get; set; } = "Vietnamese";
 }
 
@@ -32,7 +32,20 @@ public class MenuItemTranslationResponseDto
 {
     public string? NameAlt { get; set; }
     public string? DescriptionAlt { get; set; }
-    public List<ModifierGroupDto> ModifierGroupsAlt { get; set; } = new();
+    public List<string> IngredientsAlt { get; set; } = new();
+}
+
+public class ModifierGroupTranslationRequestDto
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> OptionNames { get; set; } = new();
+    public string TargetLanguageName { get; set; } = "Vietnamese";
+}
+
+public class ModifierGroupTranslationResponseDto
+{
+    public string? NameAlt { get; set; }
+    public List<string> OptionNamesAlt { get; set; } = new();
 }
 
 public class RestaurantSettingsDto
@@ -68,6 +81,7 @@ public static class LanguageDefinitions
 public class ModifierGroupDto
 {
     public string Name { get; set; } = string.Empty;
+    public string? NameAlt { get; set; }
     public bool Required { get; set; }
     public List<ModifierOptionDto> Options { get; set; } = new();
 }
@@ -76,6 +90,7 @@ public class ModifierOptionDto
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string? NameAlt { get; set; }
     public decimal PriceModifier { get; set; }
 }
 

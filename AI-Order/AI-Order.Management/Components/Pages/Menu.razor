@@ -115,7 +115,7 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-primary" @onclick="() => OpenEdit(item)">Edit</button>
+                                    <button class="btn btn-outline-primary" @onclick="async () => await OpenEdit(item)">Edit</button>
                                     @if (_confirmDeleteId == item.Id)
                                     {
                                         <button class="btn btn-danger" @onclick="() => DeleteAsync(item.Id)">Confirm</button>
@@ -299,66 +299,39 @@
                     <hr />
 
                     @* ── Modifier Groups ── *@
-                    <h6 class="text-uppercase text-muted fw-bold mb-3">Modifier Groups</h6>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="text-uppercase text-muted fw-bold mb-0">Modifier Groups</h6>
+                        <a href="modifier-groups" class="btn btn-sm btn-outline-secondary" target="_blank">Manage Library ↗</a>
+                    </div>
                     <div class="mb-4">
-                        @for (int gi = 0; gi < _editItem.ModifierGroups.Count; gi++)
+                        @if (!_allModifierGroups.Any())
                         {
-                            var g = _editItem.ModifierGroups[gi];
-                            var groupIndex = gi;
-                            <div class="card mb-3">
-                                <div class="card-header d-flex align-items-center gap-2 py-2">
-                                    <input class="form-control form-control-sm" style="max-width:220px"
-                                           placeholder="Group name (e.g. Doneness)"
-                                           value="@g.Name"
-                                           @oninput="e => g.Name = e.Value?.ToString() ?? string.Empty" />
-                                    <div class="form-check form-switch mb-0 ms-2">
-                                        <input class="form-check-input" type="checkbox" id="req-@gi"
-                                               checked="@g.Required"
-                                               @onchange="e => g.Required = (bool)(e.Value ?? false)" />
-                                        <label class="form-check-label small" for="req-@gi">Required</label>
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-danger ms-auto"
-                                            @onclick="() => _editItem.ModifierGroups.RemoveAt(groupIndex)">
-                                        Remove Group
-                                    </button>
-                                </div>
-                                <div class="card-body py-2">
-                                    @foreach (var opt in g.Options.ToList())
-                                    {
-                                        var o = opt;
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <input class="form-control form-control-sm" style="max-width:200px"
-                                                   placeholder="Option name"
-                                                   value="@o.Name"
-                                                   @oninput="e => o.Name = e.Value?.ToString() ?? string.Empty" />
-                                            <div class="input-group input-group-sm" style="max-width:130px">
-                                                <span class="input-group-text">+$</span>
-                                                <input class="form-control" type="number" step="0.01" min="0"
-                                                       value="@o.PriceModifier"
-                                                       @oninput="e => { if (decimal.TryParse(e.Value?.ToString(), out var p)) o.PriceModifier = p; }" />
-                                            </div>
-                                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                                    @onclick="() => g.Options.Remove(o)">✕</button>
-                                        </div>
-                                    }
-                                    <div class="d-flex align-items-center gap-2 mt-2">
-                                        <input class="form-control form-control-sm" style="max-width:200px"
-                                               placeholder="New option name..."
-                                               @bind="_newOptName[groupIndex]" @bind:event="oninput" />
-                                        <div class="input-group input-group-sm" style="max-width:130px">
-                                            <span class="input-group-text">+$</span>
-                                            <input class="form-control" type="number" step="0.01" min="0"
-                                                   @bind="_newOptPrice[groupIndex]" @bind:event="oninput" />
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                                @onclick="() => AddOption(groupIndex)">Add</button>
-                                    </div>
-                                </div>
-                            </div>
+                            <p class="text-muted small">No modifier groups in library yet. <a href="modifier-groups" target="_blank">Create groups first</a>.</p>
                         }
-                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="AddGroup">
-                            + Add Modifier Group
-                        </button>
+                        else
+                        {
+                            @foreach (var group in _allModifierGroups)
+                            {
+                                var gId = group.Id;
+                                var isSelected = _selectedGroupIds.Contains(gId);
+                                <div class="mb-2">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="grp-@gId"
+                                               checked="@isSelected"
+                                               @onchange="e => ToggleGroupAssignment(gId, e.Value is bool b && b)" />
+                                        <label class="form-check-label d-flex align-items-center gap-2 flex-wrap" for="grp-@gId">
+                                            <strong>@group.Name</strong>
+                                            @if (group.Required) { <span class="badge bg-danger">Required</span> }
+                                            @if (!string.IsNullOrEmpty(group.NameAlt)) { <span class="text-muted">/ @group.NameAlt</span> }
+                                            @if (group.Options.Any())
+                                            {
+                                                <span class="text-muted small">(@string.Join(", ", group.Options.OrderBy(o => o.SortOrder).Select(o => o.Name)))</span>
+                                            }
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        }
                     </div>
 
                     <hr />
@@ -392,50 +365,28 @@
                                 <textarea class="form-control" rows="2" @bind="_editItem.DescriptionAlt"
                                           placeholder="@($"{SecondaryLangName} description...")"></textarea>
                             </div>
-                        </div>
-                    }
-                    @if (!string.IsNullOrEmpty(_settingsSecondary) && _editItem.ModifierGroups.Any())
-                    {
-                        <div class="mb-4">
-                            <label class="form-label text-muted small">Modifier Group Names (@SecondaryLangName)</label>
-                            @for (int gi = 0; gi < _editItem.ModifierGroups.Count; gi++)
-                            {
-                                var g = _editItem.ModifierGroups[gi];
-                                var gvi = gi < _editItem.ModifierGroupsAlt.Count ? _editItem.ModifierGroupsAlt[gi] : null;
-                                var groupIdx = gi;
-                                <div class="card mb-2">
-                                    <div class="card-header py-1 d-flex align-items-center gap-3">
-                                        <span class="small text-muted flex-shrink-0" style="min-width:90px">@g.Name</span>
-                                        <span class="text-muted">→</span>
-                                        <input class="form-control form-control-sm" style="max-width:200px"
-                                               placeholder="@($"{SecondaryLangName} group name...")"
-                                               value="@(gvi?.Name ?? "")"
-                                               @oninput="e => SetModGroupAltName(groupIdx, e.Value?.ToString() ?? string.Empty)" />
-                                    </div>
-                                    @if (g.Options.Any())
+                            <div class="col-12">
+                                <label class="form-label">Ingredients (@SecondaryLangName)</label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    @foreach (var ing in _editItem.IngredientsAlt)
                                     {
-                                        <div class="card-body py-2">
-                                            @for (int oi = 0; oi < g.Options.Count; oi++)
-                                            {
-                                                var opt = g.Options[oi];
-                                                var oviName = gvi != null && oi < gvi.Options.Count ? gvi.Options[oi].Name : "";
-                                                var optIdx = oi;
-                                                <div class="d-flex align-items-center gap-2 mb-1">
-                                                    <span class="small text-muted flex-shrink-0" style="min-width:110px">@opt.Name</span>
-                                                    <span class="text-muted flex-shrink-0">→</span>
-                                                    <input class="form-control form-control-sm" style="max-width:200px"
-                                                           placeholder="@($"{SecondaryLangName} option...")"
-                                                           value="@oviName"
-                                                           @oninput="e => SetModOptionAltName(groupIdx, optIdx, e.Value?.ToString() ?? string.Empty)" />
-                                                </div>
-                                            }
-                                        </div>
+                                        <span class="badge bg-light text-dark border d-flex align-items-center gap-1">
+                                            @ing
+                                            <button type="button" class="btn-close" style="font-size:0.6rem"
+                                                    @onclick="() => _editItem.IngredientsAlt.Remove(ing)"></button>
+                                        </span>
                                     }
                                 </div>
-                            }
+                                <div class="input-group" style="max-width:350px">
+                                    <input class="form-control form-control-sm"
+                                           placeholder="@($"Add {SecondaryLangName} ingredient...")"
+                                           @bind="_newIngredientAlt" @bind:event="oninput"
+                                           @onkeydown="@(e => { if (e.Key == "Enter") AddIngredientAlt(); })" />
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="AddIngredientAlt">Add</button>
+                                </div>
+                            </div>
                         </div>
                     }
-
                     <hr />
 
                     @* ── Images ── *@
@@ -530,9 +481,10 @@
     private string? _previewUrl;
 
     private string _newIngredient = "";
+    private string _newIngredientAlt = "";
     private string _newAllergen = "";
-    private Dictionary<int, string> _newOptName = new();
-    private Dictionary<int, string> _newOptPrice = new();
+    private List<ModifierGroupEntity> _allModifierGroups = [];
+    private List<int> _selectedGroupIds = [];
 
     private Dictionary<int, bool> _uploading = new();
     private Dictionary<int, string> _uploadErrors = new();
@@ -557,6 +509,20 @@
         _userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         await LoadAsync();
         await LoadLangSettingsAsync();
+        await LoadModifierGroupsAsync();
+    }
+
+    private async Task LoadModifierGroupsAsync()
+    {
+        try
+        {
+            _allModifierGroups = await Db.ModifierGroups
+                .Where(g => g.AspNetUserId == _userId)
+                .Include(g => g.Options)
+                .OrderBy(g => g.SortOrder).ThenBy(g => g.Name)
+                .ToListAsync();
+        }
+        catch (Exception ex) { _error = $"Could not load modifier groups: {ex.Message}"; }
     }
 
     private async Task LoadLangSettingsAsync()
@@ -636,30 +602,29 @@
     {
         _isNew = true;
         _editItem = new MenuItemDto { Id = Guid.NewGuid().ToString(), IsAvailable = true };
-        _newOptName.Clear();
-        _newOptPrice.Clear();
+        _selectedGroupIds = [];
         _uploading.Clear();
         _uploadErrors.Clear();
         _newIngredient = "";
+        _newIngredientAlt = "";
         _newAllergen = "";
         _showModal = true;
     }
 
-    private void OpenEdit(MenuItemEntity entity)
+    private async Task OpenEdit(MenuItemEntity entity)
     {
         _isNew = false;
         _editItem = ToDto(entity);
-        _newOptName.Clear();
-        _newOptPrice.Clear();
         _uploading.Clear();
         _uploadErrors.Clear();
         _newIngredient = "";
+        _newIngredientAlt = "";
         _newAllergen = "";
-        for (int i = 0; i < _editItem.ModifierGroups.Count; i++)
-        {
-            _newOptName[i] = "";
-            _newOptPrice[i] = "";
-        }
+        _selectedGroupIds = await Db.MenuItemModifierGroups
+            .Where(x => x.MenuItemId == entity.Id)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.ModifierGroupId)
+            .ToListAsync();
         _showModal = true;
     }
 
@@ -683,15 +648,26 @@
         {
             var existing = await Db.MenuItems.FindAsync(_editItem.Id);
             if (existing is null)
-            {
                 Db.MenuItems.Add(ToEntity(_editItem));
-            }
             else
             {
                 ApplyToEntity(existing, _editItem);
                 Db.MenuItems.Update(existing);
             }
             await Db.SaveChangesAsync();
+
+            var oldLinks = await Db.MenuItemModifierGroups
+                .Where(x => x.MenuItemId == _editItem.Id).ToListAsync();
+            Db.MenuItemModifierGroups.RemoveRange(oldLinks);
+            for (int i = 0; i < _selectedGroupIds.Count; i++)
+                Db.MenuItemModifierGroups.Add(new MenuItemModifierGroupEntity
+                {
+                    MenuItemId = _editItem.Id,
+                    ModifierGroupId = _selectedGroupIds[i],
+                    SortOrder = i
+                });
+            await Db.SaveChangesAsync();
+
             await LoadAsync();
             CloseModal();
         }
@@ -718,6 +694,14 @@
         _newIngredient = "";
     }
 
+    private void AddIngredientAlt()
+    {
+        var val = _newIngredientAlt.Trim();
+        if (!string.IsNullOrEmpty(val) && _editItem is not null && !_editItem.IngredientsAlt.Contains(val))
+            _editItem.IngredientsAlt.Add(val);
+        _newIngredientAlt = "";
+    }
+
     private void AddAllergen()
     {
         var val = _newAllergen.Trim();
@@ -733,30 +717,11 @@
         else _editItem.Allergens.Add(allergen);
     }
 
-    // ── Modifier group helpers ─────────────────────────────────────
-    private void AddGroup()
+    // ── Modifier group assignment helpers ─────────────────────────
+    private void ToggleGroupAssignment(int groupId, bool selected)
     {
-        if (_editItem is null) return;
-        var idx = _editItem.ModifierGroups.Count;
-        _editItem.ModifierGroups.Add(new ModifierGroupDto { Name = "", Required = false });
-        _newOptName[idx] = "";
-        _newOptPrice[idx] = "";
-    }
-
-    private void AddOption(int groupIndex)
-    {
-        if (_editItem is null || groupIndex >= _editItem.ModifierGroups.Count) return;
-        var name = _newOptName.GetValueOrDefault(groupIndex, "").Trim();
-        if (string.IsNullOrEmpty(name)) return;
-        decimal.TryParse(_newOptPrice.GetValueOrDefault(groupIndex, "0"), out var price);
-        _editItem.ModifierGroups[groupIndex].Options.Add(new ModifierOptionDto
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = name,
-            PriceModifier = price
-        });
-        _newOptName[groupIndex] = "";
-        _newOptPrice[groupIndex] = "";
+        if (selected) { if (!_selectedGroupIds.Contains(groupId)) _selectedGroupIds.Add(groupId); }
+        else _selectedGroupIds.Remove(groupId);
     }
 
     // ── Image upload helpers ───────────────────────────────────────
@@ -821,49 +786,6 @@
         StateHasChanged();
     }
 
-    // ── Vietnamese translation helpers ────────────────────────────
-    private void EnsureModGroupsAltSynced()
-    {
-        if (_editItem is null) return;
-        while (_editItem.ModifierGroupsAlt.Count < _editItem.ModifierGroups.Count)
-        {
-            var enGroup = _editItem.ModifierGroups[_editItem.ModifierGroupsAlt.Count];
-            _editItem.ModifierGroupsAlt.Add(new ModifierGroupDto
-            {
-                Name = "",
-                Options = enGroup.Options.Select(_ => new ModifierOptionDto()).ToList()
-            });
-        }
-        while (_editItem.ModifierGroupsAlt.Count > _editItem.ModifierGroups.Count)
-            _editItem.ModifierGroupsAlt.RemoveAt(_editItem.ModifierGroupsAlt.Count - 1);
-        for (int i = 0; i < _editItem.ModifierGroups.Count; i++)
-        {
-            var viGroup = _editItem.ModifierGroupsAlt[i];
-            var enGroup = _editItem.ModifierGroups[i];
-            while (viGroup.Options.Count < enGroup.Options.Count)
-                viGroup.Options.Add(new ModifierOptionDto());
-            while (viGroup.Options.Count > enGroup.Options.Count)
-                viGroup.Options.RemoveAt(viGroup.Options.Count - 1);
-        }
-    }
-
-    private void SetModGroupAltName(int groupIndex, string name)
-    {
-        if (_editItem is null) return;
-        EnsureModGroupsAltSynced();
-        if (groupIndex < _editItem.ModifierGroupsAlt.Count)
-            _editItem.ModifierGroupsAlt[groupIndex].Name = name;
-    }
-
-    private void SetModOptionAltName(int groupIndex, int optionIndex, string name)
-    {
-        if (_editItem is null) return;
-        EnsureModGroupsAltSynced();
-        if (groupIndex < _editItem.ModifierGroupsAlt.Count
-            && optionIndex < _editItem.ModifierGroupsAlt[groupIndex].Options.Count)
-            _editItem.ModifierGroupsAlt[groupIndex].Options[optionIndex].Name = name;
-    }
-
     private async Task AutoTranslateAsync()
     {
         if (_editItem is null || string.IsNullOrWhiteSpace(_editItem.Name)) return;
@@ -876,7 +798,7 @@
             {
                 Name = _editItem.Name,
                 Description = _editItem.Description,
-                ModifierGroups = _editItem.ModifierGroups,
+                Ingredients = _editItem.Ingredients,
                 TargetLanguageName = SecondaryLangName
             };
             var client = HttpClientFactory.CreateClient("Api");
@@ -887,13 +809,10 @@
             {
                 _editItem.NameAlt = result.NameAlt;
                 _editItem.DescriptionAlt = result.DescriptionAlt;
-                _editItem.ModifierGroupsAlt = result.ModifierGroupsAlt ?? [];
+                _editItem.IngredientsAlt = result.IngredientsAlt;
             }
         }
-        catch (Exception ex)
-        {
-            _error = $"Auto-translate failed: {ex.Message}";
-        }
+        catch (Exception ex) { _error = $"Auto-translate failed: {ex.Message}"; }
         _translating = false;
     }
 
@@ -910,12 +829,11 @@
         Image1 = e.Image1,
         Image2 = e.Image2,
         Image3 = e.Image3,
-        Ingredients = Deserialize<List<string>>(e.IngredientsJson),
-        Allergens = Deserialize<List<string>>(e.AllergensJson),
-        ModifierGroups = Deserialize<List<ModifierGroupDto>>(e.ModifierGroupsJson),
-        NameAlt = e.NameAlt,
+        Ingredients    = Deserialize<List<string>>(e.IngredientsJson),
+        IngredientsAlt = Deserialize<List<string>>(e.IngredientsJsonAlt),
+        Allergens      = Deserialize<List<string>>(e.AllergensJson),
+        NameAlt        = e.NameAlt,
         DescriptionAlt = e.DescriptionAlt,
-        ModifierGroupsAlt = Deserialize<List<ModifierGroupDto>>(e.ModifierGroupsJsonAlt),
     };
 
     private MenuItemEntity ToEntity(MenuItemDto d)
@@ -936,12 +854,11 @@
         e.Image1 = d.Image1;
         e.Image2 = d.Image2;
         e.Image3 = d.Image3;
-        e.IngredientsJson = JsonSerializer.Serialize(d.Ingredients);
-        e.AllergensJson = JsonSerializer.Serialize(d.Allergens);
-        e.ModifierGroupsJson = JsonSerializer.Serialize(d.ModifierGroups);
-        e.NameAlt = d.NameAlt;
-        e.DescriptionAlt = d.DescriptionAlt;
-        e.ModifierGroupsJsonAlt = JsonSerializer.Serialize(d.ModifierGroupsAlt);
+        e.IngredientsJson    = JsonSerializer.Serialize(d.Ingredients);
+        e.IngredientsJsonAlt = JsonSerializer.Serialize(d.IngredientsAlt);
+        e.AllergensJson      = JsonSerializer.Serialize(d.Allergens);
+        e.NameAlt            = d.NameAlt;
+        e.DescriptionAlt     = d.DescriptionAlt;
     }
 
     private T Deserialize<T>(string json) where T : new()
