@@ -13,10 +13,20 @@
 <div class="page-layout">
 
     <!-- Language toggle -->
-    <div class="lang-toggle-bar">
-        <button class="lang-btn @(_lang == "en" ? "lang-active" : "")" @onclick='() => SetLang("en")'>🇺🇸 EN</button>
-        <button class="lang-btn @(_lang == "vi" ? "lang-active" : "")" @onclick='() => SetLang("vi")'>🇻🇳 VI</button>
-    </div>
+    @if (_settings != null && (SecondaryLang != null || true))
+    {
+        <div class="lang-toggle-bar">
+            <button class="lang-btn @(_lang == "primary" ? "lang-active" : "")" @onclick='() => SetLang("primary")'>
+                @PrimaryLang.Flag @PrimaryLang.Code.ToUpper()
+            </button>
+            @if (SecondaryLang != null)
+            {
+                <button class="lang-btn @(_lang == "alt" ? "lang-active" : "")" @onclick='() => SetLang("alt")'>
+                    @SecondaryLang.Flag @SecondaryLang.Code.ToUpper()
+                </button>
+            }
+        </div>
+    }
 
     <!-- Top: Menu + Order Panel -->
     <div class="top-row">
@@ -36,8 +46,8 @@
                         <div class="menu-grid">
                             @foreach (var item in category)
                             {
-                                var qty = _currentOrder?.LineItems.FirstOrDefault(li => li.MenuItemId == item.Id)?.Quantity ?? 0;
-                                <div class="menu-card @(qty > 0 ? "menu-card-selected" : "")" @onclick="() => AddItem(item)">
+                                var qty = _currentOrder?.LineItems.Where(li => li.MenuItemId == item.Id).Sum(li => li.Quantity) ?? 0;
+                                <div class="menu-card @(qty > 0 ? "menu-card-selected" : "")" @onclick="() => OpenItemModal(item)">
                                     @if (!string.IsNullOrEmpty(item.MainImage))
                                     {
                                         <button class="menu-card-thumb" type="button"
@@ -47,10 +57,13 @@
                                         </button>
                                     }
                                     <div class="menu-card-body">
-                                        <span class="menu-card-name">@item.Name</span>
-                                        @if (!string.IsNullOrEmpty(item.Description))
+                                        <span class="menu-card-name">@(_lang == "alt" && !string.IsNullOrEmpty(item.NameAlt) ? item.NameAlt : item.Name)</span>
+                                        @{
+                                            var displayDesc = _lang == "alt" && !string.IsNullOrEmpty(item.DescriptionAlt) ? item.DescriptionAlt : item.Description;
+                                        }
+                                        @if (!string.IsNullOrEmpty(displayDesc))
                                         {
-                                            <span class="menu-card-desc">@item.Description</span>
+                                            <span class="menu-card-desc">@displayDesc</span>
                                         }
                                     </div>
                                     <div class="menu-card-right">
@@ -221,6 +234,105 @@
     </div>
 }
 
+@if (_itemModalItem is not null)
+{
+    var modalItem = _itemModalItem;
+    var modalName = _lang == "alt" && !string.IsNullOrEmpty(modalItem.NameAlt) ? modalItem.NameAlt : modalItem.Name;
+    var modalDesc = _lang == "alt" && !string.IsNullOrEmpty(modalItem.DescriptionAlt) ? modalItem.DescriptionAlt : modalItem.Description;
+    <div class="item-modal-overlay" @onclick="CloseItemModal">
+        <div class="item-modal" @onclick:stopPropagation>
+            <div class="item-modal-header">
+                <div class="item-modal-header-info">
+                    <div class="item-modal-title">@modalName</div>
+                    <div class="item-modal-price">$@modalItem.Price.ToString("F2")</div>
+                </div>
+                <button class="item-modal-close" type="button" @onclick="CloseItemModal">&times;</button>
+            </div>
+            <div class="item-modal-body">
+                @if (!string.IsNullOrEmpty(modalItem.MainImage))
+                {
+                    <img src="@modalItem.MainImage" alt="@modalItem.Name" class="item-modal-img" />
+                }
+                @if (!string.IsNullOrEmpty(modalDesc))
+                {
+                    <p class="item-modal-desc">@modalDesc</p>
+                }
+                @for (int gi = 0; gi < modalItem.ModifierGroups.Count; gi++)
+                {
+                    var grp = modalItem.ModifierGroups[gi];
+                    var gIdx = gi;
+                    var altGrp = _lang == "alt" && gi < modalItem.ModifierGroupsAlt.Count
+                        ? modalItem.ModifierGroupsAlt[gi] : null;
+                    var grpName = !string.IsNullOrEmpty(altGrp?.Name) ? altGrp!.Name : grp.Name;
+                    <div class="modifier-group">
+                        <div class="modifier-group-title">
+                            @grpName
+                            @if (grp.Required)
+                            {
+                                <span class="modifier-required-badge">Required</span>
+                            }
+                        </div>
+                        @for (int oi = 0; oi < grp.Options.Count; oi++)
+                        {
+                            var opt = grp.Options[oi];
+                            var oIdx = oi;
+                            var altOpt = altGrp != null && oi < altGrp.Options.Count ? altGrp.Options[oi] : null;
+                            var optName = !string.IsNullOrEmpty(altOpt?.Name) ? altOpt!.Name : opt.Name;
+                            @if (grp.Required)
+                            {
+                                <label class="modifier-option">
+                                    <input type="radio"
+                                           name="mod-@modalItem.Id-@gIdx"
+                                           checked="@(_selectedRequired.GetValueOrDefault(gIdx, -1) == oIdx)"
+                                           @onchange="() => SelectRequired(gIdx, oIdx)" />
+                                    <span class="modifier-option-name">@optName</span>
+                                    @if (opt.PriceModifier != 0)
+                                    {
+                                        <span class="modifier-option-price">@FormatModPrice(opt.PriceModifier)</span>
+                                    }
+                                </label>
+                            }
+                            else
+                            {
+                                <label class="modifier-option">
+                                    <input type="checkbox"
+                                           checked="@_selectedOptional.Contains((gIdx, oIdx))"
+                                           @onchange="e => ToggleOptional(gIdx, oIdx, e.Value is bool b && b)" />
+                                    <span class="modifier-option-name">@optName</span>
+                                    @if (opt.PriceModifier != 0)
+                                    {
+                                        <span class="modifier-option-price">@FormatModPrice(opt.PriceModifier)</span>
+                                    }
+                                </label>
+                            }
+                        }
+                    </div>
+                }
+                <div class="special-instructions-section">
+                    <label class="special-instructions-label">Special Instructions</label>
+                    <textarea class="special-instructions-input" rows="2"
+                              placeholder="Any special requests..."
+                              @bind="_specialInstructions"
+                              @bind:event="oninput"></textarea>
+                </div>
+            </div>
+            <div class="item-modal-footer">
+                <button class="btn-item-cancel" type="button" @onclick="CloseItemModal">Cancel</button>
+                <div class="item-modal-qty">
+                    <button class="item-modal-qty-btn" type="button"
+                            @onclick="DecreaseQty" disabled="@(_itemQty <= 1)">−</button>
+                    <span class="item-modal-qty-val">@_itemQty</span>
+                    <button class="item-modal-qty-btn" type="button" @onclick="IncreaseQty">+</button>
+                </div>
+                <button class="btn-item-add" type="button"
+                        @onclick="ConfirmAddItem" disabled="@HasUnsatisfiedRequired">
+                    Add to Order · $@((ModalUnitPrice() * _itemQty).ToString("F2"))
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string? UserId { get; set; }
     [Parameter] public string? TableId { get; set; }
@@ -235,9 +347,18 @@
     private MenuItemDto? _previewItem;
     private int _previewIndex;
 
-    private string _lang = "en";
-    private string SpeechLang => _lang == "vi" ? "vi-VN" : "en-US";
-    private string InputPlaceholder => _lang == "vi" ? "Nhập đơn hàng của bạn..." : "Type your order...";
+    private MenuItemDto? _itemModalItem;
+    private int _itemQty = 1;
+    private readonly Dictionary<int, int> _selectedRequired = new();
+    private readonly HashSet<(int g, int o)> _selectedOptional = new();
+    private string _specialInstructions = string.Empty;
+
+    private string _lang = "primary";
+    private RestaurantSettingsDto? _settings;
+    private LanguageInfo PrimaryLang => LanguageDefinitions.Get(_settings?.PrimaryLanguageCode);
+    private LanguageInfo? SecondaryLang => string.IsNullOrEmpty(_settings?.SecondaryLanguageCode) ? null : LanguageDefinitions.Get(_settings.SecondaryLanguageCode);
+    private string SpeechLang => _lang == "alt" && SecondaryLang != null ? SecondaryLang.SpeechCode : PrimaryLang.SpeechCode;
+    private string InputPlaceholder => _lang == "alt" && SecondaryLang != null ? SecondaryLang.Placeholder : PrimaryLang.Placeholder;
 
     private void SetLang(string lang) => _lang = lang;
     private string _streamingText = string.Empty;
@@ -277,7 +398,11 @@
 
         try
         {
-            _menuItems = await OrderingService.GetMenuAsync(UserId);
+            var menuTask = OrderingService.GetMenuAsync(UserId);
+            var settingsTask = OrderingService.GetSettingsAsync(UserId);
+            await Task.WhenAll(menuTask, settingsTask);
+            _menuItems = menuTask.Result;
+            _settings = settingsTask.Result;
         }
         catch { }
         finally
@@ -444,6 +569,88 @@
         if (_previewItem is null) return;
         var count = GetPreviewImages(_previewItem).Count;
         _previewIndex = (_previewIndex + 1) % count;
+    }
+
+    private bool HasUnsatisfiedRequired
+    {
+        get
+        {
+            if (_itemModalItem is null) return false;
+            for (int i = 0; i < _itemModalItem.ModifierGroups.Count; i++)
+                if (_itemModalItem.ModifierGroups[i].Required &&
+                    (!_selectedRequired.TryGetValue(i, out var v) || v < 0))
+                    return true;
+            return false;
+        }
+    }
+
+    private decimal ModalUnitPrice()
+    {
+        if (_itemModalItem is null) return 0;
+        decimal price = _itemModalItem.Price;
+        var grps = _itemModalItem.ModifierGroups;
+        foreach (var (gi, oi) in _selectedRequired)
+            if (oi >= 0 && gi < grps.Count && oi < grps[gi].Options.Count)
+                price += grps[gi].Options[oi].PriceModifier;
+        foreach (var (gi, oi) in _selectedOptional)
+            if (gi < grps.Count && oi < grps[gi].Options.Count)
+                price += grps[gi].Options[oi].PriceModifier;
+        return price;
+    }
+
+    private static string FormatModPrice(decimal price)
+        => price >= 0 ? $"+${price:F2}" : $"-${-price:F2}";
+
+    private void OpenItemModal(MenuItemDto item)
+    {
+        _itemModalItem = item;
+        _itemQty = 1;
+        _selectedRequired.Clear();
+        _selectedOptional.Clear();
+        _specialInstructions = string.Empty;
+        for (int i = 0; i < item.ModifierGroups.Count; i++)
+            if (item.ModifierGroups[i].Required)
+                _selectedRequired[i] = -1;
+    }
+
+    private void CloseItemModal() => _itemModalItem = null;
+    private void SelectRequired(int gi, int oi) => _selectedRequired[gi] = oi;
+    private void ToggleOptional(int gi, int oi, bool selected)
+    {
+        if (selected) _selectedOptional.Add((gi, oi));
+        else _selectedOptional.Remove((gi, oi));
+    }
+    private void DecreaseQty() { if (_itemQty > 1) _itemQty--; }
+    private void IncreaseQty() => _itemQty++;
+
+    private void ConfirmAddItem()
+    {
+        if (_itemModalItem is null) return;
+        var unitPrice = ModalUnitPrice();
+        var mods = new List<string>();
+        var grps = _itemModalItem.ModifierGroups;
+        foreach (var (gi, oi) in _selectedRequired.OrderBy(x => x.Key))
+            if (oi >= 0 && gi < grps.Count && oi < grps[gi].Options.Count)
+                mods.Add(grps[gi].Options[oi].Name);
+        foreach (var (gi, oi) in _selectedOptional.OrderBy(x => x.g))
+            if (gi < grps.Count && oi < grps[gi].Options.Count)
+                mods.Add(grps[gi].Options[oi].Name);
+
+        _currentOrder ??= new OrderDto { Id = Guid.NewGuid().ToString(), Status = OrderStatus.Draft };
+        _currentOrder.LineItems.Add(new OrderLineItemDto
+        {
+            MenuItemId = _itemModalItem.Id,
+            Name = _itemModalItem.Name,
+            Quantity = _itemQty,
+            UnitPrice = unitPrice,
+            LineTotal = unitPrice * _itemQty,
+            SelectedModifiers = mods,
+            SpecialInstructions = string.IsNullOrWhiteSpace(_specialInstructions) ? null : _specialInstructions.Trim()
+        });
+
+        RecalculateTotals();
+        CloseItemModal();
+        StateHasChanged();
     }
 
     private void AddItem(MenuItemDto item)

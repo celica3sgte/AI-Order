@@ -13,6 +13,7 @@ public interface IOrderingService
     Task<SubmitOrderResponseDto> SubmitOrderAsync(SubmitOrderRequestDto request);
     Task<List<KitchenOrderDto>> GetKitchenOrdersAsync();
     Task<bool> CompleteOrderAsync(string orderId, int version);
+    Task<RestaurantSettingsDto> GetSettingsAsync(string? userId = null);
 }
 
 public class OrderingService : IOrderingService
@@ -106,5 +107,14 @@ public class OrderingService : IOrderingService
     {
         var response = await _http.PostAsync($"api/orders/{orderId}/complete?version={version}", null);
         return response.IsSuccessStatusCode;
+    }
+
+    public async Task<RestaurantSettingsDto> GetSettingsAsync(string? userId = null)
+    {
+        var url = string.IsNullOrEmpty(userId)
+            ? "api/restaurant/settings"
+            : $"api/restaurant/settings?userId={Uri.EscapeDataString(userId)}";
+        return await _http.GetFromJsonAsync<RestaurantSettingsDto>(url)
+            ?? new RestaurantSettingsDto { RestaurantName = "Restaurant", PrimaryLanguageCode = "en" };
     }
 }

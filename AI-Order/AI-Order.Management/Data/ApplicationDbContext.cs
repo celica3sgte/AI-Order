@@ -6,6 +6,7 @@ namespace AI_Order.Management.Data;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<MenuItemEntity> MenuItems => Set<MenuItemEntity>();
+    public DbSet<RestaurantSettingsEntity> RestaurantSettings => Set<RestaurantSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -24,7 +25,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             e.Property(m => m.Image1).HasMaxLength(500);
             e.Property(m => m.Image2).HasMaxLength(500);
             e.Property(m => m.Image3).HasMaxLength(500);
+            e.Property(m => m.NameAlt).HasMaxLength(200);
+            e.Property(m => m.DescriptionAlt).HasMaxLength(1000);
+            e.Property(m => m.ModifierGroupsJsonAlt).HasDefaultValue("[]");
             e.HasIndex(m => m.AspNetUserId);
+        });
+
+        builder.Entity<RestaurantSettingsEntity>(e =>
+        {
+            e.HasKey(s => s.AspNetUserId);
+            e.Property(s => s.AspNetUserId).HasMaxLength(450);
+            e.Property(s => s.PrimaryLanguageCode).HasMaxLength(10).HasDefaultValue("en");
+            e.Property(s => s.SecondaryLanguageCode).HasMaxLength(10);
         });
 
         // SQL Server cannot index nvarchar(max) — cap Identity key columns

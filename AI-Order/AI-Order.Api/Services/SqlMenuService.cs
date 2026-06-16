@@ -28,7 +28,8 @@ public class SqlMenuService
             cmd.CommandText = """
                 SELECT Id, Name, Description, Price, Category, IsAvailable,
                        MainImage, Image1, Image2, Image3,
-                       IngredientsJson, AllergensJson, ModifierGroupsJson
+                       IngredientsJson, AllergensJson, ModifierGroupsJson,
+                       NameAlt, DescriptionAlt, ModifierGroupsJsonAlt
                 FROM MenuItems
                 WHERE AspNetUserId = @userId AND IsAvailable = 1
                 ORDER BY Category, Name
@@ -56,7 +57,8 @@ public class SqlMenuService
             cmd.CommandText = """
                 SELECT Id, Name, Description, Price, Category, IsAvailable,
                        MainImage, Image1, Image2, Image3,
-                       IngredientsJson, AllergensJson, ModifierGroupsJson
+                       IngredientsJson, AllergensJson, ModifierGroupsJson,
+                       NameAlt, DescriptionAlt, ModifierGroupsJsonAlt
                 FROM MenuItems
                 WHERE Id = @id AND AspNetUserId = @userId
                 """;
@@ -87,6 +89,9 @@ public class SqlMenuService
         Ingredients = Deserialize<List<string>>(r.GetString(10)),
         Allergens = Deserialize<List<string>>(r.GetString(11)),
         ModifierGroups = Deserialize<List<ModifierGroupDto>>(r.GetString(12)),
+        NameAlt = r.IsDBNull(13) ? null : r.GetString(13),
+        DescriptionAlt = r.IsDBNull(14) ? null : r.GetString(14),
+        ModifierGroupsAlt = Deserialize<List<ModifierGroupDto>>(r.IsDBNull(15) ? "[]" : r.GetString(15)),
     };
 
     private static T Deserialize<T>(string json) where T : new()

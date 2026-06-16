@@ -16,4 +16,7 @@ public class MenuItemEntity
     public string IngredientsJson { get; set; } = "[]";
     public string AllergensJson { get; set; } = "[]";
     public string ModifierGroupsJson { get; set; } = "[]";
+    public string? NameAlt { get; set; }
+    public string? DescriptionAlt { get; set; }
+    public string ModifierGroupsJsonAlt { get; set; } = "[]";
 }

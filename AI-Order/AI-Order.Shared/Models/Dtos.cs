@@ -15,6 +15,54 @@ public class MenuItemDto
     public string? Image1 { get; set; }
     public string? Image2 { get; set; }
     public string? Image3 { get; set; }
+    public string? NameAlt { get; set; }
+    public string? DescriptionAlt { get; set; }
+    public List<ModifierGroupDto> ModifierGroupsAlt { get; set; } = new();
+}
+
+public class MenuItemTranslationRequestDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public List<ModifierGroupDto> ModifierGroups { get; set; } = new();
+    public string TargetLanguageName { get; set; } = "Vietnamese";
+}
+
+public class MenuItemTranslationResponseDto
+{
+    public string? NameAlt { get; set; }
+    public string? DescriptionAlt { get; set; }
+    public List<ModifierGroupDto> ModifierGroupsAlt { get; set; } = new();
+}
+
+public class RestaurantSettingsDto
+{
+    public string RestaurantName { get; set; } = string.Empty;
+    public string PrimaryLanguageCode { get; set; } = "en";
+    public string? SecondaryLanguageCode { get; set; }
+}
+
+public class LanguageInfo
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string SpeechCode { get; set; } = string.Empty;
+    public string Flag { get; set; } = string.Empty;
+    public string Placeholder { get; set; } = string.Empty;
+}
+
+public static class LanguageDefinitions
+{
+    public static readonly IReadOnlyDictionary<string, LanguageInfo> All =
+        new Dictionary<string, LanguageInfo>
+        {
+            ["en"] = new() { Code = "en", Name = "English",    SpeechCode = "en-US", Flag = "🇺🇸", Placeholder = "Type your order..." },
+            ["vi"] = new() { Code = "vi", Name = "Vietnamese", SpeechCode = "vi-VN", Flag = "🇻🇳", Placeholder = "Nhập đơn hàng của bạn..." },
+            ["es"] = new() { Code = "es", Name = "Spanish",    SpeechCode = "es-US", Flag = "🇪🇸", Placeholder = "Escribe tu pedido..." }
+        };
+
+    public static LanguageInfo Get(string? code) =>
+        !string.IsNullOrEmpty(code) && All.TryGetValue(code, out var lang) ? lang : All["en"];
 }
 
 public class ModifierGroupDto
